@@ -2,9 +2,116 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 
 /**
- * Extract clean content from potentially JSON-wrapped output.
+ * Format an agent's full response for display.
+ * Removes JSON syntax but keeps all content including thinking/comments.
  */
-function extractCleanContent(content: string): string {
+export function formatAgentResponse(content: string): string {
+  let cleaned = content.trim();
+
+  // Remove markdown code fences
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  cleaned = cleaned.trim();
+
+  // Try to parse as JSON and format nicely
+  try {
+    if (cleaned.startsWith('{')) {
+      const parsed = JSON.parse(cleaned);
+      const parts: string[] = [];
+
+      // Add thinking/reasoning if present
+      if (parsed.thinking) {
+        parts.push(`**Thinking:**\n${parsed.thinking}`);
+      }
+      if (parsed.reasoning) {
+        parts.push(`**Reasoning:**\n${parsed.reasoning}`);
+      }
+      if (parsed.analysis) {
+        parts.push(`**Analysis:**\n${parsed.analysis}`);
+      }
+      if (parsed.comments) {
+        parts.push(`**Comments:**\n${parsed.comments}`);
+      }
+      if (parsed.feedback) {
+        parts.push(`**Feedback:**\n${parsed.feedback}`);
+      }
+      if (parsed.suggestions) {
+        parts.push(`**Suggestions:**\n${parsed.suggestions}`);
+      }
+      if (parsed.changes) {
+        parts.push(`**Changes Made:**\n${parsed.changes}`);
+      }
+
+      // Add the output
+      if (parsed.output) {
+        parts.push(`**Output:**\n${parsed.output}`);
+      }
+
+      // Add evaluation summary if present
+      if (parsed.evaluation?.criteria_scores) {
+        const scores = parsed.evaluation.criteria_scores
+          .map((c: { criterion: string; score: number }) => `  • ${c.criterion}: ${c.score}/10`)
+          .join('\n');
+        parts.push(`**Self-Evaluation:**\n${scores}`);
+      }
+
+      if (parts.length > 0) {
+        return parts.join('\n\n');
+      }
+    }
+  } catch {
+    // Not valid JSON, continue with regex approach
+  }
+
+  // Try to extract and format key-value pairs from JSON-like structure
+  const sections: string[] = [];
+
+  // Extract common fields using regex
+  const fieldPatterns = [
+    { key: 'thinking', label: 'Thinking' },
+    { key: 'reasoning', label: 'Reasoning' },
+    { key: 'analysis', label: 'Analysis' },
+    { key: 'comments', label: 'Comments' },
+    { key: 'feedback', label: 'Feedback' },
+    { key: 'suggestions', label: 'Suggestions' },
+    { key: 'changes', label: 'Changes Made' },
+    { key: 'output', label: 'Output' },
+  ];
+
+  for (const { key, label } of fieldPatterns) {
+    const regex = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)"`, 's');
+    const match = cleaned.match(regex);
+    if (match) {
+      const value = match[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .trim();
+      if (value) {
+        sections.push(`**${label}:**\n${value}`);
+      }
+    }
+  }
+
+  if (sections.length > 0) {
+    return sections.join('\n\n');
+  }
+
+  // If no structure found, return as-is (removing any remaining JSON artifacts)
+  return cleaned
+    .replace(/^\s*\{\s*/, '')
+    .replace(/\s*\}\s*$/, '')
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\');
+}
+
+/**
+ * Extract clean content from potentially JSON-wrapped output.
+ * Removes JSON wrapper, evaluation scores, and code fences.
+ */
+export function extractCleanContent(content: string): string {
   let cleaned = content.trim();
 
   // Remove markdown code fences (```json ... ``` or ``` ... ```)

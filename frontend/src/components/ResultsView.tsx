@@ -1,11 +1,11 @@
 'use client';
 
-import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil, Download, Mail, X, Loader2 } from 'lucide-react';
+import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil, Download, Mail, X, Loader2, ChevronDown, ChevronRight } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session';
 import { LiveAgentPanel } from '@/components/LiveAgentPanel';
-import { downloadAsWord } from '@/lib/export';
+import { downloadAsWord, extractCleanContent, formatAgentResponse } from '@/lib/export';
 import { api } from '@/lib/api';
 import { clsx } from 'clsx';
 import { useState, useEffect } from 'react';
@@ -19,6 +19,8 @@ export function ResultsView() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailSent, setEmailSent] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [showProcess, setShowProcess] = useState(false);
+  const [expandedTurns, setExpandedTurns] = useState<Set<number>>(new Set());
 
   // Fetch user email on mount
   useEffect(() => {
@@ -40,12 +42,24 @@ export function ResultsView() {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const toggleTurn = (index: number) => {
+    setExpandedTurns(prev => {
+      const next = new Set(prev);
+      if (next.has(index)) {
+        next.delete(index);
+      } else {
+        next.add(index);
+      }
+      return next;
+    });
+  };
+
   const handleDownloadWord = async () => {
     if (!sessionState) return;
     const title = sessionState.config.title || 'document';
     const filename = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-    const finalDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
-    await downloadAsWord(finalDoc, filename);
+    const rawDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
+    await downloadAsWord(rawDoc, filename);
   };
 
   const handleSendEmail = async () => {
@@ -55,8 +69,8 @@ export function ResultsView() {
     setEmailError(null);
 
     try {
-      const finalDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
-      await api.emailDocument(sessionState.config.session_id, emailAddress.trim(), finalDoc);
+      const rawDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
+      await api.emailDocument(sessionState.config.session_id, emailAddress.trim(), rawDoc);
       setEmailSent(true);
       setTimeout(() => {
         setShowEmailModal(false);
@@ -177,7 +191,8 @@ export function ResultsView() {
   }
 
   const { exchange_history, termination_reason, current_round } = sessionState;
-  const finalDocument = exchange_history[exchange_history.length - 1]?.working_document || '';
+  const rawDocument = exchange_history[exchange_history.length - 1]?.working_document || '';
+  const finalDocument = extractCleanContent(rawDocument);
   const wasStopped = termination_reason === 'Stopped by user';
 
   return (
@@ -224,6 +239,100 @@ export function ResultsView() {
         </CardContent>
       </Card>
 
+      {/* Writing Process - Collapsible */}
+      <Card>
+        <CardHeader
+          className="cursor-pointer select-none hover:bg-zinc-50 transition-colors rounded-t-xl"
+          onClick={() => setShowProcess(!showProcess)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              {showProcess ? (
+                <ChevronDown className="h-5 w-5 text-zinc-500" />
+              ) : (
+                <ChevronRight className="h-5 w-5 text-zinc-500" />
+              )}
+              <CardTitle>Writing Process</CardTitle>
+              <span className="text-sm text-zinc-500 font-normal">
+                ({exchange_history.length} step{exchange_history.length !== 1 ? 's' : ''})
+              </span>
+            </div>
+          </div>
+        </CardHeader>
+        {showProcess && (
+          <CardContent className="space-y-3 pt-0">
+            {exchange_history.map((turn, index) => {
+              const isExpanded = expandedTurns.has(index);
+              // Use raw_response if available, otherwise fall back to working_document
+              const rawContent = turn.raw_response || turn.working_document;
+              const formattedContent = formatAgentResponse(rawContent);
+
+              return (
+                <div
+                  key={index}
+                  className="rounded-xl border transition-all"
+                >
+                  {/* Turn Header - Clickable */}
+                  <div
+                    className="flex items-center justify-between p-4 cursor-pointer hover:bg-zinc-50 transition-colors"
+                    onClick={() => toggleTurn(index)}
+                  >
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? (
+                        <ChevronDown className="h-4 w-4 text-zinc-400" />
+                      ) : (
+                        <ChevronRight className="h-4 w-4 text-zinc-400" />
+                      )}
+                      <div className={clsx(
+                        'w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold',
+                        index % 2 === 0
+                          ? 'bg-violet-100 text-violet-600'
+                          : 'bg-blue-100 text-blue-600'
+                      )}>
+                        {turn.turn_number}
+                      </div>
+                      <div>
+                        <span className="font-medium text-zinc-900">
+                          {turn.agent_name}
+                        </span>
+                        <span className="text-xs text-zinc-400 ml-2">
+                          Round {turn.round_number}
+                        </span>
+                      </div>
+                    </div>
+                    {turn.evaluation && (
+                      <span className={clsx(
+                        'px-2.5 py-1 rounded-full text-xs font-semibold',
+                        turn.evaluation.overall_score >= 8
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : turn.evaluation.overall_score >= 6
+                          ? 'bg-amber-100 text-amber-700'
+                          : 'bg-rose-100 text-rose-700'
+                      )}>
+                        {turn.evaluation.overall_score.toFixed(1)}/10
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Expanded Content */}
+                  {isExpanded && (
+                    <div className="px-4 pb-4 pt-0">
+                      <div className="bg-zinc-50 rounded-lg p-4 border border-zinc-200 max-h-[400px] overflow-y-auto">
+                        <div className="prose prose-sm prose-zinc max-w-none">
+                          <pre className="whitespace-pre-wrap text-sm text-zinc-700 font-sans leading-relaxed">
+                            {formattedContent}
+                          </pre>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Final Document */}
       <Card variant="elevated">
         <CardHeader className="flex flex-row items-center justify-between">
@@ -232,29 +341,29 @@ export function ResultsView() {
           </CardTitle>
           <div className="flex items-center gap-2">
             <Button
-              variant="secondary"
               size="sm"
               onClick={() => handleCopy(finalDocument)}
+              className="bg-zinc-700 hover:bg-zinc-800 text-white"
             >
               <Copy className="h-4 w-4" />
               {copied ? 'Copied!' : 'Copy'}
             </Button>
             <Button
-              variant="secondary"
               size="sm"
               onClick={handleDownloadWord}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
             >
               <Download className="h-4 w-4" />
               Word
             </Button>
             <Button
-              variant="secondary"
               size="sm"
               onClick={() => {
                 setEmailAddress(userEmail);
                 setEmailError(null);
                 setShowEmailModal(true);
               }}
+              className="bg-violet-600 hover:bg-violet-700 text-white"
             >
               <Mail className="h-4 w-4" />
               Email
@@ -269,63 +378,6 @@ export function ResultsView() {
               </pre>
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Exchange History */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Writing Process</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {exchange_history.map((turn, index) => (
-            <div
-              key={index}
-              className={clsx(
-                'p-4 rounded-xl border transition-all',
-                'hover:shadow-sm'
-              )}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className={clsx(
-                    'w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold',
-                    index % 2 === 0
-                      ? 'bg-violet-100 text-violet-600'
-                      : 'bg-blue-100 text-blue-600'
-                  )}>
-                    {turn.turn_number}
-                  </div>
-                  <div>
-                    <span className="font-medium text-zinc-900">
-                      {turn.agent_name}
-                    </span>
-                    <span className="text-xs text-zinc-400 ml-2">
-                      Round {turn.round_number}
-                    </span>
-                  </div>
-                </div>
-                {turn.evaluation && (
-                  <span className={clsx(
-                    'px-2.5 py-1 rounded-full text-xs font-semibold',
-                    turn.evaluation.overall_score >= 8
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : turn.evaluation.overall_score >= 6
-                      ? 'bg-amber-100 text-amber-700'
-                      : 'bg-rose-100 text-rose-700'
-                  )}>
-                    {turn.evaluation.overall_score.toFixed(1)}/10
-                  </span>
-                )}
-              </div>
-
-              {/* Preview */}
-              <p className="text-sm text-zinc-600 line-clamp-2">
-                {turn.working_document.substring(0, 200)}
-                {turn.working_document.length > 200 ? '...' : ''}
-              </p>
-            </div>
-          ))}
         </CardContent>
       </Card>
 
