@@ -1,6 +1,168 @@
-# Troubleshooting Guide - Atelier Phase 1
+# Troubleshooting Guide - Atelier
 
 ## Common Issues & Solutions
+
+### Authentication Issues (Clerk)
+
+#### "Unauthorized" or 401 errors on API requests
+**Problem:** JWT token is invalid or missing
+
+**Solutions:**
+1. Check frontend is sending auth header:
+   ```typescript
+   // In api.ts, ensure getToken() is called
+   const token = await getToken();
+   headers['Authorization'] = `Bearer ${token}`;
+   ```
+2. Verify Clerk environment variables in backend `.env`:
+   ```bash
+   CLERK_ISSUER=https://your-instance.clerk.accounts.dev
+   CLERK_JWKS_URL=https://your-instance.clerk.accounts.dev/.well-known/jwks.json
+   ```
+3. Check token hasn't expired (Clerk tokens expire after ~1 hour)
+4. Ensure frontend `.env.local` has correct Clerk keys
+
+#### "User not found" after successful login
+**Problem:** User exists in Clerk but not in local database
+
+**Solution:**
+- Users are auto-provisioned on first API request
+- Check backend logs for provisioning errors
+- Verify database connection is working
+- Manual fix: The auth middleware should create the user automatically
+
+---
+
+### Billing Issues (Stripe)
+
+#### "Subscription checkout fails"
+**Problem:** Stripe checkout session creation fails
+
+**Solutions:**
+1. Verify Stripe keys in `.env`:
+   ```bash
+   STRIPE_SECRET_KEY=sk_test_...  # or sk_live_...
+   STRIPE_WEBHOOK_SECRET=whsec_...
+   STRIPE_STARTER_PRICE_ID=price_...
+   STRIPE_PRO_PRICE_ID=price_...
+   ```
+2. Check Price IDs exist in your Stripe dashboard
+3. Ensure FRONTEND_URL is set correctly for redirects
+
+#### "Credits not updating after payment"
+**Problem:** Webhook not processing correctly
+
+**Solutions:**
+1. For local development, run Stripe CLI:
+   ```bash
+   stripe listen --forward-to localhost:8000/api/v1/billing/webhook
+   ```
+2. Check webhook secret matches the one from Stripe CLI
+3. Verify webhook endpoint is accessible (not behind auth)
+4. Check backend logs for webhook processing errors
+
+#### "Insufficient credits" error
+**Problem:** User's credit balance is too low
+
+**Solutions:**
+1. Check user's current balance at `/settings` page
+2. Purchase additional credits or upgrade subscription
+3. For testing, manually add credits via database
+
+---
+
+### Email Issues (Resend)
+
+#### "Email service is not configured"
+**Problem:** RESEND_API_KEY not set
+
+**Solution:**
+Add to backend `.env`:
+```bash
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Atelier <onboarding@resend.dev>
+```
+
+#### "Failed to send email" error
+**Problem:** Resend API call failed
+
+**Solutions:**
+1. Verify API key is valid at https://resend.com/api-keys
+2. Check from email domain is verified in Resend
+3. For development, use `onboarding@resend.dev` (sandbox)
+4. Check recipient email is valid
+5. Review backend logs for specific error
+
+#### "Email sent but not received"
+**Problem:** Email delivered but not visible
+
+**Solutions:**
+1. Check spam/junk folder
+2. Verify recipient email address is correct
+3. Check Resend dashboard for delivery status
+4. For `@resend.dev` addresses, emails only work in test mode
+
+---
+
+### Document Export Issues
+
+#### "Word document contains JSON wrapper"
+**Problem:** Export includes `{"output": "..."}` instead of clean content
+
+**Solution:** This was fixed in the export code. Ensure you have the latest version of:
+- `frontend/src/lib/export.ts`
+- `backend/app/core/email.py`
+
+Both files now include `extractCleanContent()` function that strips JSON wrappers.
+
+#### "Word document is empty"
+**Problem:** No content extracted from session
+
+**Solutions:**
+1. Verify session has completed successfully
+2. Check `exchange_history` has entries
+3. Look at raw `working_document` in session state
+4. Ensure the last exchange has valid content
+
+#### "Download doesn't start"
+**Problem:** Browser not triggering download
+
+**Solutions:**
+1. Check for popup blockers
+2. Verify `file-saver` package is installed in frontend
+3. Check browser console for errors
+4. Try a different browser
+
+---
+
+### Session Issues
+
+#### "Sessions sidebar not refreshing"
+**Problem:** Completed sessions don't appear in sidebar
+
+**Solution:** Fixed by adding refresh on `currentSessionId` change. Ensure `SessionsSidebar.tsx` has:
+```typescript
+useEffect(() => {
+  if (currentSessionId) {
+    loadSessions();
+  }
+}, [currentSessionId]);
+```
+
+#### "Continue Editing doesn't preserve documents"
+**Problem:** Reference documents lost when continuing
+
+**Solution:** The `continueEditing` action in `session.ts` should preserve:
+- `referenceDocuments`
+- `referenceInstructions`
+- `workflowRoles`
+- `presetSelections`
+- `maxRounds`
+- `projectId`
+
+Check the store implementation if these are being reset.
+
+---
 
 ### Setup Issues
 
@@ -542,13 +704,21 @@ If you encounter a bug not covered here, please report with:
 
 ## Known Limitations (Not Bugs)
 
-These are expected limitations of Phase 1:
+Current expected limitations:
 
-- ❌ No streaming (tokens appear all at once)
-- ❌ No persistence (sessions lost on restart)
-- ❌ No pause/resume
-- ❌ No retry on API failures
-- ❌ No context window management
-- ❌ No parallel critique mode
+- ❌ No parallel critique mode (multiple agents reviewing simultaneously)
+- ❌ No automatic retry on API failures
+- ❌ No context window management for very long sessions
+- ❌ No team workspaces / collaboration
+- ❌ No custom workflow templates (beyond presets)
 
-These will be addressed in future phases. See [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md) for details.
+**Completed features:**
+- ✅ Real-time streaming
+- ✅ Session persistence (database)
+- ✅ Pause/resume orchestration
+- ✅ User authentication
+- ✅ Credit-based billing
+- ✅ Document export (Word)
+- ✅ Email delivery
+
+See [PHASE_1_SUMMARY.md](PHASE_1_SUMMARY.md) for full feature list and roadmap.

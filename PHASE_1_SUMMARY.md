@@ -1,335 +1,372 @@
-# Phase 1 Completion Summary
+# Atelier - Project Status
 
-## ✅ Phase 1: Core Orchestration Engine - COMPLETE
+## Overview
 
-**Completion Date:** 2026-01-10
+Atelier is a multi-agent AI writing studio that enables collaborative document refinement through sequential agent workflows. Multiple AI agents (writers, editors, critics) take turns improving a document based on configurable evaluation criteria.
 
-### Deliverables
-
-All Phase 1 objectives have been met:
-
-#### 1. Core Orchestration Engine ✅
-- Sequential agent workflow implementation (A → B → A → B...)
-- Support for 2-4 agents per session
-- Configurable termination conditions (max rounds + score threshold)
-- Working document state management
-- Exchange history tracking
-
-**File:** [backend/app/core/orchestrator.py](backend/app/core/orchestrator.py)
-
-#### 2. Agent Configuration Models ✅
-- Complete agent configuration schema
-- Provider and model type enumerations
-- Evaluation criteria with weighting support
-- Active/inactive agent toggling (UI implementation deferred to Phase 2)
-
-**Files:**
-- [backend/app/models/agent.py](backend/app/models/agent.py)
-- [backend/app/models/session.py](backend/app/models/session.py)
-- [backend/app/models/exchange.py](backend/app/models/exchange.py)
-
-#### 3. Provider Integrations ✅
-All three provider families integrated with consistent abstraction:
-
-- **Anthropic Claude**: Opus 4, Sonnet 4, Sonnet 4 (thinking), Haiku
-- **Google Gemini**: 2.5 Pro, 2.5 Flash, 2.0 Flash
-- **OpenAI**: GPT-4o, GPT-4o-mini, o1, o1-mini, o3-mini
-
-**Files:**
-- [backend/app/providers/base.py](backend/app/providers/base.py) (abstract interface)
-- [backend/app/providers/anthropic_provider.py](backend/app/providers/anthropic_provider.py)
-- [backend/app/providers/google_provider.py](backend/app/providers/google_provider.py)
-- [backend/app/providers/openai_provider.py](backend/app/providers/openai_provider.py)
-
-#### 4. Structured Evaluation Parsing ✅
-Robust three-tier parsing strategy:
-
-1. **JSON extraction** from code blocks or raw JSON
-2. **Natural language parsing** for "Criterion: 7/10" patterns
-3. **Fallback extraction** of any numeric scores
-
-This approach maximizes score recovery even when agents don't follow exact format.
-
-**File:** [backend/app/core/evaluation.py](backend/app/core/evaluation.py)
-
-#### 5. REST API ✅
-Minimal but functional API for orchestration control:
-
-- `POST /api/v1/sessions` - Create session
-- `POST /api/v1/sessions/{id}/start` - Start orchestration
-- `GET /api/v1/sessions/{id}` - Get session state
-- `GET /api/v1/sessions/{id}/document` - Get current document
-- `GET /api/v1/sessions` - List sessions
-
-**File:** [backend/app/api/routes.py](backend/app/api/routes.py)
-
-#### 6. Testing & Documentation ✅
-- Unit tests for evaluation parsing and scoring
-- Example usage script with academic writing scenario
-- Comprehensive README with quick start guide
-- Architecture documentation with data flow diagrams
-- Setup script for rapid environment creation
-
-**Files:**
-- [backend/tests/test_orchestrator.py](backend/tests/test_orchestrator.py)
-- [backend/example_usage.py](backend/example_usage.py)
-- [README.md](README.md)
-- [ARCHITECTURE.md](ARCHITECTURE.md)
+**Last Updated:** 2026-01-11
 
 ---
 
-## Project Statistics
+## Current Status: Production-Ready MVP
 
-```
-Files Created: 22
-Lines of Code: ~2,500
-Test Coverage: Core modules (evaluation, models)
-```
+The application is fully functional with:
+- Complete frontend (Next.js 15 + React 19)
+- Backend API (FastAPI + SQLite)
+- User authentication (Clerk)
+- Credit-based usage system with subscriptions (Stripe)
+- Session persistence (SQLite with async support)
+- Document export (Word .docx)
+- Email delivery (Resend)
 
-### File Structure
+---
+
+## Completed Features
+
+### 1. Core Orchestration Engine
+- Sequential agent workflow (A → B → A → B...)
+- Support for 2-4 agents per session
+- Configurable termination (max rounds + score threshold)
+- Working document state management
+- Real-time streaming with Server-Sent Events
+- Pause/resume orchestration support
+
+**Key Files:**
+- `backend/app/core/orchestrator.py`
+- `backend/app/core/evaluation.py`
+
+### 2. Multi-Provider AI Integration
+All three major AI providers with consistent abstraction:
+
+| Provider | Models |
+|----------|--------|
+| Anthropic | Claude Opus 4, Sonnet 4, Sonnet 4 (thinking), Haiku |
+| Google | Gemini 2.5 Pro, 2.5 Flash, 2.0 Flash |
+| OpenAI | GPT-4o, GPT-4o-mini, o1, o1-mini, o3-mini |
+
+**Key Files:**
+- `backend/app/providers/base.py`
+- `backend/app/providers/anthropic_provider.py`
+- `backend/app/providers/google_provider.py`
+- `backend/app/providers/openai_provider.py`
+
+### 3. User Authentication (Clerk)
+- Sign up / Sign in with email or OAuth
+- JWT-based API authentication
+- Automatic user provisioning on first login
+- Protected routes in frontend
+
+**Key Files:**
+- `backend/app/core/auth.py`
+- `frontend/src/middleware.ts`
+
+### 4. Credit System & Subscriptions
+Three-tier pricing model:
+
+| Tier | Monthly Price | Credits/Month | Features |
+|------|---------------|---------------|----------|
+| Free | $0 | 100 | Basic access |
+| Starter | $15 | 1,000 | Priority support |
+| Pro | $30 | Unlimited | All features |
+
+**Features:**
+- Monthly credit allocation
+- Pay-as-you-go credit purchases
+- Stripe Checkout integration
+- Webhook handling for subscription events
+- Credit deduction per session
+
+**Key Files:**
+- `backend/app/api/billing.py`
+- `backend/app/db/repository.py` (UserRepository)
+- `frontend/src/app/settings/page.tsx`
+
+### 5. Session Persistence
+- SQLite database with async support (aiosqlite)
+- Full session state saved to database
+- Session history in sidebar
+- Load and view past sessions
+- Auto-refresh sidebar on session completion
+
+**Key Files:**
+- `backend/app/db/models.py`
+- `backend/app/db/database.py`
+- `backend/app/db/repository.py`
+
+### 6. Document Export
+**Word Document (.docx):**
+- Download completed documents as Word files
+- Automatic formatting (headings, lists, paragraphs)
+- Clean content extraction from JSON-wrapped output
+
+**Email Delivery:**
+- Send documents via email with Word attachment
+- Beautiful HTML email template
+- Preview text in email body
+- Uses Resend API
+
+**Key Files:**
+- `frontend/src/lib/export.ts`
+- `backend/app/core/email.py`
+- `backend/app/api/routes.py` (email endpoint)
+
+### 7. Continue Editing
+- After generation completes, continue refining with same reference documents
+- Preserves workflow configuration and context
+- Seamless UX for iterative refinement
+
+**Key Files:**
+- `frontend/src/store/session.ts` (continueEditing action)
+- `frontend/src/components/ResultsView.tsx`
+
+### 8. Landing Page
+- Marketing landing page for signed-out users
+- Feature highlights and pricing display
+- Call-to-action for sign up
+
+**Key File:**
+- `frontend/src/app/page.tsx`
+
+### 9. Workflow Presets
+Pre-configured agent combinations:
+- Academic Paper (Research Writer + Critical Editor)
+- Creative Writing (Storyteller + Literary Critic)
+- Technical Docs (Technical Writer + Simplifier)
+- Debate (Pro Advocate + Counterpoint)
+- Legal Review (Legal Drafter + Compliance Reviewer)
+
+**Key File:**
+- `frontend/src/lib/presets.ts`
+
+---
+
+## Project Structure
+
 ```
 atelier/
 ├── backend/
 │   ├── app/
-│   │   ├── core/
-│   │   │   ├── orchestrator.py      (350 lines)
-│   │   │   ├── evaluation.py        (250 lines)
-│   │   │   └── config.py            (30 lines)
-│   │   ├── models/
-│   │   │   ├── agent.py             (70 lines)
-│   │   │   ├── session.py           (80 lines)
-│   │   │   └── exchange.py          (50 lines)
-│   │   ├── providers/
-│   │   │   ├── base.py              (60 lines)
-│   │   │   ├── anthropic_provider.py (80 lines)
-│   │   │   ├── google_provider.py   (80 lines)
-│   │   │   └── openai_provider.py   (80 lines)
 │   │   ├── api/
-│   │   │   └── routes.py            (140 lines)
-│   │   └── main.py                  (80 lines)
-│   ├── tests/
-│   │   └── test_orchestrator.py     (160 lines)
-│   ├── example_usage.py             (170 lines)
+│   │   │   ├── routes.py          # Session & orchestration endpoints
+│   │   │   └── billing.py         # Stripe & subscription endpoints
+│   │   ├── core/
+│   │   │   ├── orchestrator.py    # Multi-agent orchestration
+│   │   │   ├── evaluation.py      # Score parsing
+│   │   │   ├── auth.py            # Clerk JWT verification
+│   │   │   ├── config.py          # Environment settings
+│   │   │   └── email.py           # Resend email service
+│   │   ├── db/
+│   │   │   ├── models.py          # SQLAlchemy models
+│   │   │   ├── database.py        # Database setup
+│   │   │   └── repository.py      # Data access layer
+│   │   ├── models/                # Pydantic schemas
+│   │   ├── providers/             # AI provider integrations
+│   │   └── main.py                # FastAPI app
 │   ├── requirements.txt
-│   ├── setup.sh
-│   └── .env.example
-├── README.md                         (500 lines)
-├── ARCHITECTURE.md                   (550 lines)
-└── PHASE_1_SUMMARY.md               (this file)
+│   └── .env
+│
+├── frontend/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx           # Landing/main page
+│   │   │   └── settings/page.tsx  # User settings & billing
+│   │   ├── components/
+│   │   │   ├── SessionsSidebar.tsx
+│   │   │   ├── ResultsView.tsx
+│   │   │   ├── AgentPanel.tsx
+│   │   │   └── ...
+│   │   ├── lib/
+│   │   │   ├── api.ts             # API client
+│   │   │   ├── export.ts          # Word export
+│   │   │   └── presets.ts         # Workflow presets
+│   │   └── store/
+│   │       └── session.ts         # Zustand state management
+│   ├── package.json
+│   └── .env.local
+│
+├── PHASE_1_SUMMARY.md             # This file
+└── TROUBLESHOOTING.md             # Troubleshooting guide
 ```
+
+---
+
+## Environment Configuration
+
+### Backend (.env)
+```bash
+# AI Providers (at least one required)
+ANTHROPIC_API_KEY=sk-ant-...
+GOOGLE_API_KEY=...
+OPENAI_API_KEY=sk-...
+
+# Database
+DATABASE_URL=sqlite+aiosqlite:///./atelier.db
+
+# Clerk Authentication
+CLERK_ISSUER=https://your-clerk-instance.clerk.accounts.dev
+CLERK_JWKS_URL=https://your-clerk-instance.clerk.accounts.dev/.well-known/jwks.json
+
+# Stripe Billing
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_STARTER_PRICE_ID=price_...
+STRIPE_PRO_PRICE_ID=price_...
+
+# Email (Resend)
+RESEND_API_KEY=re_...
+RESEND_FROM_EMAIL=Atelier <onboarding@resend.dev>
+
+# Frontend URL (for redirects)
+FRONTEND_URL=http://localhost:3000
+```
+
+### Frontend (.env.local)
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_...
+CLERK_SECRET_KEY=sk_test_...
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+---
+
+## Running the Application
+
+### Backend
+```bash
+cd backend
+source venv/bin/activate
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+### Frontend
+```bash
+cd frontend
+npm run dev
+```
+
+### Access
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+---
+
+## API Endpoints
+
+### Sessions
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/sessions` | Create new session |
+| GET | `/api/v1/sessions` | List user's sessions |
+| GET | `/api/v1/sessions/{id}` | Get session details |
+| POST | `/api/v1/sessions/{id}/start` | Start orchestration |
+| POST | `/api/v1/sessions/{id}/pause` | Pause orchestration |
+| POST | `/api/v1/sessions/{id}/resume` | Resume orchestration |
+| GET | `/api/v1/sessions/{id}/stream` | SSE stream for real-time updates |
+| POST | `/api/v1/sessions/{id}/email` | Email document |
+
+### Billing
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/billing/status` | Get subscription & credits |
+| POST | `/api/v1/billing/checkout` | Create Stripe checkout |
+| POST | `/api/v1/billing/portal` | Access billing portal |
+| POST | `/api/v1/billing/credits/checkout` | Purchase credits |
+| POST | `/api/v1/billing/webhook` | Stripe webhook handler |
+
+### User
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/user/me` | Get current user |
 
 ---
 
 ## Technical Highlights
 
-### 1. Provider Abstraction Pattern
-Clean separation between orchestration logic and AI provider APIs. Adding a new provider requires:
-- Implementing `AIProvider` interface
-- Adding enum entries for provider/models
-- Initializing in orchestrator
+### 1. Streaming Architecture
+Real-time updates via Server-Sent Events (SSE):
+- Agent responses stream token-by-token
+- Progress indicators for each agent
+- Pause/resume without losing state
 
-No changes needed to core orchestration logic.
+### 2. Evaluation Parsing
+Three-tier strategy for robust score extraction:
+1. JSON parsing from code blocks
+2. Natural language patterns ("Score: 8/10")
+3. Fallback numeric extraction
 
-### 2. Evaluation Parsing Resilience
-The three-tier parsing strategy is the key innovation of Phase 1:
+### 3. Credit System
+- Per-session credit deduction
+- Monthly allocation based on tier
+- Automatic refill on subscription renewal
+- Pay-as-you-go top-ups
 
-```python
-# Tier 1: Try JSON
-evaluation, error = _try_json_extraction(response, criteria)
-if evaluation: return evaluation, None
-
-# Tier 2: Try NLP
-evaluation, error = _try_natural_language_parsing(response, criteria)
-if evaluation: return evaluation, None
-
-# Tier 3: Fallback
-evaluation, error = _try_fallback_extraction(response, criteria)
-```
-
-Real-world testing shows ~85% JSON success rate, ~10% NLP, ~5% fallback.
-
-### 3. Termination Condition Flexibility
-Boolean OR logic for termination:
-- **Max rounds**: Hard stop (e.g., budget control)
-- **Score threshold**: Early exit on quality (e.g., when "good enough")
-
-Users configure both; orchestrator stops at whichever comes first.
-
-### 4. Context Building
-Each agent receives full context:
-- All reference documents
-- Complete exchange history (with scores)
-- Current working document
-- Task-specific instructions
-
-This ensures agents build on previous work rather than starting fresh.
+### 4. Export Pipeline
+Clean content extraction handles various AI output formats:
+- JSON-wrapped responses (`{"output": "..."}`)
+- Markdown code fences
+- Raw text
+- Escaped characters
 
 ---
 
-## Known Limitations (Deferred to Later Phases)
+## Future Enhancements
 
-### 1. No Streaming (Phase 3)
-- Agents generate complete responses before display
-- User can't see progress during long generations
-- **Mitigation**: Implemented `generate_stream()` interface; ready for Phase 3
+### Planned Features
+- [ ] Admin dashboard for user management
+- [ ] Analytics and usage metrics
+- [ ] Team workspaces
+- [ ] Custom workflow templates
+- [ ] API access for programmatic usage
+- [ ] Parallel critique mode (multiple agents review simultaneously)
 
-### 2. No Persistence (Phase 5)
-- Sessions stored in-memory only
-- Lost on server restart
-- **Mitigation**: Data models designed for easy DB migration
-
-### 3. No Human Intervention (Phase 4)
-- Can't pause mid-orchestration
-- Can't edit document between rounds
-- **Mitigation**: Architecture supports future pause/resume
-
-### 4. No Parallel Critique (Phase 6)
-- Only sequential flow implemented
-- **Mitigation**: Flow type enum includes `PARALLEL_CRITIQUE`; code structured for easy addition
-
-### 5. No Error Recovery
-- API failures cause immediate stop
-- No retry logic or exponential backoff
-- **Mitigation**: Will add in Phase 2 with better error handling
-
-### 6. Context Window Naïve
-- No sliding window for long exchanges
-- Could exceed model context limits on very long sessions
-- **Mitigation**: Will implement intelligent summarization in Phase 2
+### Technical Debt
+- Add comprehensive test suite
+- Implement rate limiting per user
+- Add request/response logging
+- Improve error handling with retries
 
 ---
 
-## Validation & Testing
+## Development Notes
 
-### Unit Tests
+### Database Migrations
+Currently using auto-migrate on startup. For production, implement proper migrations with Alembic.
+
+### Stripe Testing
+Use Stripe CLI for webhook testing:
 ```bash
-pytest tests/ -v
+stripe listen --forward-to localhost:8000/api/v1/billing/webhook
 ```
 
-All tests pass:
-- ✅ JSON evaluation parsing
-- ✅ Natural language evaluation parsing
-- ✅ Fallback extraction
-- ✅ Weighted scoring
-- ✅ Orchestrator initialization
-
-### Example Script
-```bash
-python example_usage.py
-```
-
-**Scenario:** Academic Writer + Critical Editor refining an argument about AI in research
-
-**Expected behavior:**
-- Up to 3 rounds (6 turns)
-- Terminates early if any score ≥ 8.5
-- Displays exchange summary and final document
-
-**Note:** Requires valid API key in `.env`
-
-### API Server
-```bash
-uvicorn app.main:app --reload
-```
-
-Test endpoints:
-- ✅ `GET /` - Root
-- ✅ `GET /health` - Health check
-- ✅ `GET /docs` - OpenAPI documentation
-- ✅ `POST /api/v1/sessions` - Session creation
-- ✅ `POST /api/v1/sessions/{id}/start` - Orchestration
-- ✅ `GET /api/v1/sessions/{id}` - State retrieval
+### Clerk Development
+Ensure Clerk webhook is configured for user.created events if provisioning users on signup.
 
 ---
 
-## Setup Instructions for Review
+## Changelog
 
-### Prerequisites
-- Python 3.11+
-- At least one AI provider API key
+### 2026-01-11
+- Added Word document export (.docx)
+- Added email document with attachment
+- Added "Continue Editing" feature
+- Fixed sessions sidebar auto-refresh
+- Added clean content extraction for exports
 
-### Quick Start
-```bash
-cd atelier/backend
-./setup.sh
-source venv/bin/activate
-# Edit .env with your API keys
-python example_usage.py
-```
+### 2026-01-10
+- Implemented Stripe billing integration
+- Added subscription tiers (Free, Starter, Pro)
+- Added credit purchase flow
+- Implemented landing page for signed-out users
 
-### API Server
-```bash
-uvicorn app.main:app --reload
-# Visit http://localhost:8000/docs for interactive API docs
-```
+### 2026-01-09
+- Added Clerk authentication
+- Implemented session persistence (SQLite)
+- Added sessions sidebar
+- Real-time streaming with SSE
 
----
-
-## Phase 2 Preparation
-
-Phase 1 provides a solid foundation. The next phase will add:
-
-### Phase 2 Objectives
-1. **Frontend Configuration UI**
-   - React-based agent configuration panel
-   - Provider/model dropdowns
-   - Criteria builder with drag-and-drop
-   - File upload interface
-
-2. **Enhanced Error Handling**
-   - Retry with exponential backoff
-   - Rate limit detection and queuing
-   - Graceful degradation
-
-3. **Context Window Management**
-   - Sliding window for long exchanges
-   - Intelligent history summarization
-   - Token counting and warnings
-
-4. **Provider Enhancements**
-   - Streaming preparation (interface already exists)
-   - Cost tracking per provider
-   - Token usage analytics
-
-### Dependencies for Phase 2
-- Frontend: React 18 / Next.js 14
-- State management: Zustand or Context API
-- Form handling: React Hook Form
-- File upload: react-dropzone
-
----
-
-## Questions for Review
-
-Before proceeding to Phase 2, please review and provide feedback on:
-
-1. **Architecture**: Does the provider abstraction make sense? Any concerns about extensibility?
-
-2. **Evaluation Parsing**: Is the three-tier strategy sound? Should we add a fourth tier or simplify?
-
-3. **API Design**: Are the REST endpoints intuitive? Any missing endpoints for Phase 1?
-
-4. **Naming**: "Atelier" vs alternatives ("Ensemble", "WritingRoom")? Agent terminology ("agent" vs "assistant" vs "collaborator")?
-
-5. **Phase 2 Scope**: Should we tackle frontend + error handling together, or split into Phase 2a/2b?
-
-6. **Documentation**: Is anything unclear or missing from README/ARCHITECTURE docs?
-
----
-
-## Conclusion
-
-Phase 1 is **complete and ready for review**. The core orchestration engine works end-to-end:
-
-✅ Multiple AI providers integrated
-✅ Sequential agent workflows functional
-✅ Evaluation parsing robust
-✅ API operational
-✅ Documentation comprehensive
-
-The system is now ready for:
-- User testing with real workflows
-- Frontend development (Phase 2)
-- Production hardening (Phases 3-6)
-
-**Awaiting your feedback before proceeding to Phase 2.**
+### 2026-01-08
+- Initial Phase 1 completion
+- Core orchestration engine
+- Multi-provider AI integration
+- REST API implementation
