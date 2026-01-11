@@ -16,6 +16,48 @@ RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM_EMAIL = os.environ.get("RESEND_FROM_EMAIL", "Atelier <noreply@atelier.app>")
 
 
+def extract_clean_content(content: str) -> str:
+    """
+    Extract clean content from potentially JSON-wrapped output.
+
+    Args:
+        content: Raw content that may be wrapped in JSON
+
+    Returns:
+        Clean text content
+    """
+    import json
+    import re
+
+    cleaned = content.strip()
+
+    # Try to parse as JSON and extract the "output" field
+    try:
+        # Remove markdown code fence if present
+        if cleaned.startswith('```json'):
+            cleaned = re.sub(r'^```json\s*', '', cleaned)
+            cleaned = re.sub(r'\s*```$', '', cleaned)
+
+        if cleaned.startswith('{'):
+            parsed = json.loads(cleaned)
+            if 'output' in parsed:
+                return parsed['output'].strip()
+    except (json.JSONDecodeError, KeyError):
+        pass
+
+    # Check for "output": pattern even if not valid JSON
+    match = re.search(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned, re.DOTALL)
+    if match:
+        # Unescape JSON string
+        result = match.group(1)
+        result = result.replace('\\n', '\n')
+        result = result.replace('\\"', '"')
+        result = result.replace('\\\\', '\\')
+        return result.strip()
+
+    return cleaned
+
+
 def generate_word_document(content: str) -> bytes:
     """
     Generate a Word document from text content.
@@ -29,10 +71,13 @@ def generate_word_document(content: str) -> bytes:
     from docx import Document
     from docx.shared import Pt
 
+    # Extract clean content first
+    clean_content = extract_clean_content(content)
+
     doc = Document()
 
     # Parse content into paragraphs
-    lines = content.split('\n')
+    lines = clean_content.split('\n')
 
     for line in lines:
         trimmed = line.strip()
@@ -103,7 +148,8 @@ async def send_document_email(
             filename = filename.strip().replace(' ', '_')[:50] or "document"
 
         # Format the document nicely for email (preview in body)
-        preview_content = document_content[:1000] + ('...' if len(document_content) > 1000 else '')
+        clean_preview = extract_clean_content(document_content)
+        preview_content = clean_preview[:1000] + ('...' if len(clean_preview) > 1000 else '')
 
         html_content = f"""
         <html>

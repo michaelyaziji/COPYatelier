@@ -2,11 +2,52 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { saveAs } from 'file-saver';
 
 /**
+ * Extract clean content from potentially JSON-wrapped output.
+ */
+function extractCleanContent(content: string): string {
+  let cleaned = content.trim();
+
+  // Try to parse as JSON and extract the "output" field
+  try {
+    // Check if it looks like JSON
+    if (cleaned.startsWith('{') || cleaned.startsWith('```json')) {
+      // Remove markdown code fence if present
+      if (cleaned.startsWith('```json')) {
+        cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+      }
+
+      const parsed = JSON.parse(cleaned);
+      if (parsed.output) {
+        return parsed.output.trim();
+      }
+    }
+  } catch {
+    // Not valid JSON, continue with original content
+  }
+
+  // Check for "output": pattern even if not valid JSON
+  const outputMatch = cleaned.match(/"output"\s*:\s*"([\s\S]*?)"\s*\}?\s*$/);
+  if (outputMatch) {
+    // Unescape JSON string
+    return outputMatch[1]
+      .replace(/\\n/g, '\n')
+      .replace(/\\"/g, '"')
+      .replace(/\\\\/g, '\\')
+      .trim();
+  }
+
+  return cleaned;
+}
+
+/**
  * Generate and download a Word document from text content.
  */
 export async function downloadAsWord(content: string, filename: string = 'document') {
+  // Extract clean content first
+  const cleanContent = extractCleanContent(content);
+
   // Parse the content into paragraphs
-  const lines = content.split('\n');
+  const lines = cleanContent.split('\n');
   const paragraphs: Paragraph[] = [];
 
   for (const line of lines) {
