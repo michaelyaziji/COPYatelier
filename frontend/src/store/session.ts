@@ -101,6 +101,7 @@ interface SessionStore {
   resumeSession: () => Promise<void>;
   pollSessionStatus: () => Promise<void>;
   loadSession: (sessionId: string) => Promise<void>;
+  continueEditing: () => void;
   reset: () => void;
 }
 
@@ -632,6 +633,44 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         error: err instanceof Error ? err.message : 'Failed to load session',
       });
     }
+  },
+
+  continueEditing: () => {
+    const { sessionState, referenceDocuments, referenceInstructions, workflowRoles, presetSelections, maxRounds, projectId } = get();
+
+    if (!sessionState) return;
+
+    // Get the final document from the last turn
+    const finalDocument = sessionState.exchange_history.length > 0
+      ? sessionState.exchange_history[sessionState.exchange_history.length - 1].working_document
+      : '';
+
+    // Keep workflow roles, reference documents, preset selections
+    // Reset session state but keep the document as "working document" for further editing
+    set({
+      // Keep these settings
+      referenceDocuments,
+      referenceInstructions,
+      workflowRoles,
+      presetSelections,
+      maxRounds,
+      projectId,
+      // Set final document as working document for continuation
+      workingDocument: finalDocument,
+      // Clear the prompt so user can add new instructions
+      initialPrompt: '',
+      title: 'New Writing Session',
+      // Reset session state
+      sessionId: null,
+      sessionState: null,
+      isRunning: false,
+      error: null,
+      isStreaming: false,
+      isPaused: false,
+      currentRound: 0,
+      agentStreams: {},
+      streamEvents: [],
+    });
   },
 
   reset: () => {

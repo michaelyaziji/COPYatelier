@@ -28,6 +28,7 @@ export default function Home() {
   const {
     workflowRoles,
     initialPrompt,
+    workingDocument,
     isRunning,
     isStreaming,
     sessionState,
@@ -86,6 +87,13 @@ export default function Home() {
       setCurrentStep(3);
     }
   }, [sessionState, isRunning, isStreaming]);
+
+  // Navigate to step 1 when "Continue Editing" is clicked (workingDocument has content but no session)
+  useEffect(() => {
+    if (workingDocument && !sessionState && !initialPrompt && !isRunning) {
+      setCurrentStep(1);
+    }
+  }, [workingDocument, sessionState, initialPrompt, isRunning]);
 
   const { refreshBalance, lastEstimate } = useCreditsStore();
 

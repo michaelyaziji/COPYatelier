@@ -39,6 +39,13 @@ export function SessionsSidebar({
     loadSessions();
   }, []);
 
+  // Refresh sessions when currentSessionId changes (new session created/completed)
+  useEffect(() => {
+    if (currentSessionId) {
+      loadSessions();
+    }
+  }, [currentSessionId]);
+
   useEffect(() => {
     if (renamingSession && renameInputRef.current) {
       renameInputRef.current.focus();

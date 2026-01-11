@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles } from 'lucide-react';
+import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session';
@@ -9,7 +9,7 @@ import { clsx } from 'clsx';
 import { useState } from 'react';
 
 export function ResultsView() {
-  const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession } = useSessionStore();
+  const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, continueEditing } = useSessionStore();
   const [copied, setCopied] = useState(false);
 
   const handleCopy = (text: string) => {
@@ -159,10 +159,16 @@ export function ResultsView() {
                 {current_round} round{current_round !== 1 ? 's' : ''} • {exchange_history.length} turn{exchange_history.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <Button onClick={reset} variant="outline" size="sm">
-              <RotateCcw className="h-4 w-4" />
-              New Session
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button onClick={continueEditing} variant="primary" size="sm">
+                <Pencil className="h-4 w-4" />
+                Continue Editing
+              </Button>
+              <Button onClick={reset} variant="outline" size="sm">
+                <RotateCcw className="h-4 w-4" />
+                New Session
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
