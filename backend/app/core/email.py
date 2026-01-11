@@ -31,13 +31,13 @@ def extract_clean_content(content: str) -> str:
 
     cleaned = content.strip()
 
+    # Remove markdown code fences (```json ... ``` or ``` ... ```)
+    cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
+    cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+    cleaned = cleaned.strip()
+
     # Try to parse as JSON and extract the "output" field
     try:
-        # Remove markdown code fence if present
-        if cleaned.startswith('```json'):
-            cleaned = re.sub(r'^```json\s*', '', cleaned)
-            cleaned = re.sub(r'\s*```$', '', cleaned)
-
         if cleaned.startswith('{'):
             parsed = json.loads(cleaned)
             if 'output' in parsed:
@@ -51,9 +51,42 @@ def extract_clean_content(content: str) -> str:
         # Unescape JSON string
         result = match.group(1)
         result = result.replace('\\n', '\n')
+        result = result.replace('\\t', '\t')
         result = result.replace('\\"', '"')
         result = result.replace('\\\\', '\\')
         return result.strip()
+
+    # More aggressive extraction if "output" is found
+    if '"output"' in cleaned:
+        start = cleaned.find('"output"')
+        if start != -1:
+            after = cleaned[start:]
+            colon_quote = after.find('": "')
+            if colon_quote != -1:
+                content_start = colon_quote + 4
+                # Find closing quote, handling escapes
+                i = content_start
+                escaped = False
+                while i < len(after):
+                    if escaped:
+                        escaped = False
+                        i += 1
+                        continue
+                    if after[i] == '\\':
+                        escaped = True
+                        i += 1
+                        continue
+                    if after[i] == '"':
+                        break
+                    i += 1
+
+                if i > content_start:
+                    extracted = after[content_start:i]
+                    extracted = extracted.replace('\\n', '\n')
+                    extracted = extracted.replace('\\t', '\t')
+                    extracted = extracted.replace('\\"', '"')
+                    extracted = extracted.replace('\\\\', '\\')
+                    return extracted.strip()
 
     return cleaned
 

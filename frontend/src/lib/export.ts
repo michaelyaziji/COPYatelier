@@ -7,33 +7,74 @@ import { saveAs } from 'file-saver';
 function extractCleanContent(content: string): string {
   let cleaned = content.trim();
 
+  // Remove markdown code fences (```json ... ``` or ``` ... ```)
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  cleaned = cleaned.trim();
+
   // Try to parse as JSON and extract the "output" field
   try {
-    // Check if it looks like JSON
-    if (cleaned.startsWith('{') || cleaned.startsWith('```json')) {
-      // Remove markdown code fence if present
-      if (cleaned.startsWith('```json')) {
-        cleaned = cleaned.replace(/^```json\s*/, '').replace(/\s*```$/, '');
-      }
-
+    if (cleaned.startsWith('{')) {
       const parsed = JSON.parse(cleaned);
       if (parsed.output) {
         return parsed.output.trim();
       }
     }
   } catch {
-    // Not valid JSON, continue with original content
+    // Not valid JSON, try regex approach
   }
 
-  // Check for "output": pattern even if not valid JSON
-  const outputMatch = cleaned.match(/"output"\s*:\s*"([\s\S]*?)"\s*\}?\s*$/);
+  // Check for "output": pattern with various quote styles
+  // Handle both "output": "value" and "output": "multi\nline\nvalue"
+  const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
   if (outputMatch) {
     // Unescape JSON string
     return outputMatch[1]
       .replace(/\\n/g, '\n')
+      .replace(/\\t/g, '\t')
       .replace(/\\"/g, '"')
       .replace(/\\\\/g, '\\')
       .trim();
+  }
+
+  // If content still looks like it has JSON wrapper, try to extract more aggressively
+  if (cleaned.includes('"output"')) {
+    // Find everything after "output": " and before the closing "
+    const startMatch = cleaned.indexOf('"output"');
+    if (startMatch !== -1) {
+      const afterOutput = cleaned.substring(startMatch);
+      const colonQuote = afterOutput.indexOf('": "');
+      if (colonQuote !== -1) {
+        const contentStart = colonQuote + 4;
+        let contentEnd = contentStart;
+        let escaped = false;
+
+        // Find the closing quote, handling escapes
+        for (let i = contentStart; i < afterOutput.length; i++) {
+          if (escaped) {
+            escaped = false;
+            continue;
+          }
+          if (afterOutput[i] === '\\') {
+            escaped = true;
+            continue;
+          }
+          if (afterOutput[i] === '"') {
+            contentEnd = i;
+            break;
+          }
+        }
+
+        if (contentEnd > contentStart) {
+          const extracted = afterOutput.substring(contentStart, contentEnd);
+          return extracted
+            .replace(/\\n/g, '\n')
+            .replace(/\\t/g, '\t')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\')
+            .trim();
+        }
+      }
+    }
   }
 
   return cleaned;
