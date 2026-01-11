@@ -762,6 +762,55 @@ async def star_session(
     return {"session_id": session_id, "status": "updated", "starred": starred}
 
 
+class EmailDocumentRequest(BaseModel):
+    """Request body for emailing a document."""
+    email: str
+    content: str
+
+
+@router.post("/sessions/{session_id}/email")
+@limiter.limit("10/minute")
+async def email_document(
+    request: Request,
+    session_id: str,
+    body: EmailDocumentRequest,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Email the session document to a specified address.
+
+    Requires authentication. User must own the session.
+
+    Args:
+        session_id: Session identifier
+        body: JSON body with 'email' and 'content' fields
+
+    Returns:
+        Status message
+    """
+    from ..core.email import send_document_email
+
+    repo = SessionRepository(db)
+    db_session = await repo.get_for_user(session_id, user.id)
+
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    try:
+        await send_document_email(
+            to_email=body.email,
+            document_content=body.content,
+            session_title=db_session.title,
+        )
+        return {"status": "sent", "message": f"Document emailed to {body.email}"}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to send email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send email")
+
+
 # ============ User endpoints ============
 
 @router.get("/users/me")

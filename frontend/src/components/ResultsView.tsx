@@ -1,21 +1,72 @@
 'use client';
 
-import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil } from 'lucide-react';
+import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil, Download, Mail, X, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session';
 import { LiveAgentPanel } from '@/components/LiveAgentPanel';
+import { downloadAsWord } from '@/lib/export';
+import { api } from '@/lib/api';
 import { clsx } from 'clsx';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 export function ResultsView() {
   const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, continueEditing } = useSessionStore();
   const [copied, setCopied] = useState(false);
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailAddress, setEmailAddress] = useState('');
+  const [userEmail, setUserEmail] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Fetch user email on mount
+  useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const user = await api.getCurrentUser();
+        setUserEmail(user.email);
+        setEmailAddress(user.email);
+      } catch {
+        // Ignore - user may not be logged in
+      }
+    };
+    fetchUser();
+  }, []);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownloadWord = async () => {
+    if (!sessionState) return;
+    const title = sessionState.config.title || 'document';
+    const filename = title.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+    const finalDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
+    await downloadAsWord(finalDoc, filename);
+  };
+
+  const handleSendEmail = async () => {
+    if (!sessionState || !emailAddress.trim()) return;
+
+    setSendingEmail(true);
+    setEmailError(null);
+
+    try {
+      const finalDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
+      await api.emailDocument(sessionState.config.session_id, emailAddress.trim(), finalDoc);
+      setEmailSent(true);
+      setTimeout(() => {
+        setShowEmailModal(false);
+        setEmailSent(false);
+      }, 2000);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : 'Failed to send email');
+    } finally {
+      setSendingEmail(false);
+    }
   };
 
   if (error) {
@@ -179,14 +230,36 @@ export function ResultsView() {
           <CardTitle>
             {wasStopped ? 'Latest Draft' : 'Final Document'}
           </CardTitle>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => handleCopy(finalDocument)}
-          >
-            <Copy className="h-4 w-4" />
-            {copied ? 'Copied!' : 'Copy'}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => handleCopy(finalDocument)}
+            >
+              <Copy className="h-4 w-4" />
+              {copied ? 'Copied!' : 'Copy'}
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={handleDownloadWord}
+            >
+              <Download className="h-4 w-4" />
+              Word
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => {
+                setEmailAddress(userEmail);
+                setEmailError(null);
+                setShowEmailModal(true);
+              }}
+            >
+              <Mail className="h-4 w-4" />
+              Email
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="bg-zinc-50 rounded-xl p-5 border border-zinc-200 max-h-[500px] overflow-y-auto">
@@ -255,6 +328,92 @@ export function ResultsView() {
           ))}
         </CardContent>
       </Card>
+
+      {/* Email Modal */}
+      {showEmailModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50"
+            onClick={() => setShowEmailModal(false)}
+          />
+          <div className="relative bg-white rounded-xl shadow-2xl w-full max-w-md mx-4 p-6">
+            <button
+              onClick={() => setShowEmailModal(false)}
+              className="absolute top-4 right-4 p-1 rounded-lg hover:bg-zinc-100 transition-colors"
+            >
+              <X className="h-5 w-5 text-zinc-500" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                <Mail className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-zinc-900">Email Document</h3>
+                <p className="text-sm text-zinc-500">Send the document to an email address</p>
+              </div>
+            </div>
+
+            {emailSent ? (
+              <div className="text-center py-6">
+                <div className="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center mx-auto mb-3">
+                  <CheckCircle className="h-6 w-6 text-emerald-600" />
+                </div>
+                <p className="text-emerald-700 font-medium">Email sent successfully!</p>
+              </div>
+            ) : (
+              <>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+                      Email Address
+                    </label>
+                    <input
+                      type="email"
+                      value={emailAddress}
+                      onChange={(e) => setEmailAddress(e.target.value)}
+                      placeholder="Enter email address"
+                      className="w-full px-4 py-2.5 rounded-lg border border-zinc-300 focus:border-violet-500 focus:ring-2 focus:ring-violet-200 outline-none transition-all"
+                    />
+                  </div>
+
+                  {emailError && (
+                    <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
+                      <p className="text-sm text-rose-700">{emailError}</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-end gap-3 mt-6">
+                  <Button
+                    variant="secondary"
+                    onClick={() => setShowEmailModal(false)}
+                    disabled={sendingEmail}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail || !emailAddress.trim()}
+                  >
+                    {sendingEmail ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <Mail className="h-4 w-4" />
+                        Send Email
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
