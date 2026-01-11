@@ -158,7 +158,8 @@ export function LiveAgentPanel() {
                 ref={(el) => {
                   scrollRefs.current[agent.agent_id] = el;
                 }}
-                className="h-56 overflow-y-auto p-4 bg-white"
+                className="h-72 overflow-y-auto p-4 bg-white scrollbar-thin scrollbar-thumb-zinc-300 scrollbar-track-transparent"
+                style={{ maxHeight: '288px', overflowY: 'auto' }}
               >
                 {agent.status === 'idle' ? (
                   <div className="h-full flex flex-col items-center justify-center text-zinc-400">
