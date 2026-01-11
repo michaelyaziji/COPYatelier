@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenTool, Settings2, FileText, Coins, AlertCircle } from 'lucide-react';
+import { PenTool, Settings2, FileText, Coins, AlertCircle, Upload, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -29,6 +29,94 @@ export function SessionSetup() {
   } = useSessionStore();
 
   const { estimateSessionCredits, lastEstimate, balance, fetchBalance } = useCreditsStore();
+
+  // Starting document file upload state
+  const [isDraggingDoc, setIsDraggingDoc] = useState(false);
+  const [isUploadingDoc, setIsUploadingDoc] = useState(false);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+  const [docUploadError, setDocUploadError] = useState<string | null>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Process uploaded file for starting document
+  const processStartingDocument = useCallback(async (file: File) => {
+    const allowedExtensions = ['.docx', '.pdf', '.txt', '.md'];
+    if (!allowedExtensions.some((ext) => file.name.toLowerCase().endsWith(ext))) {
+      setDocUploadError(`Invalid file type. Allowed: Word, PDF, Text, Markdown`);
+      return;
+    }
+
+    setIsUploadingDoc(true);
+    setDocUploadError(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch('http://localhost:8000/api/v1/files/parse', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.detail || 'Failed to parse file');
+      }
+
+      const result = await response.json();
+      setWorkingDocument(result.content);
+      setUploadedFileName(result.filename);
+    } catch (err) {
+      setDocUploadError(err instanceof Error ? err.message : 'Failed to upload file');
+    } finally {
+      setIsUploadingDoc(false);
+    }
+  }, [setWorkingDocument]);
+
+  const handleDocFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      await processStartingDocument(file);
+    }
+    if (docFileInputRef.current) {
+      docFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDocDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingDoc(true);
+  }, []);
+
+  const handleDocDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.currentTarget === e.target) {
+      setIsDraggingDoc(false);
+    }
+  }, []);
+
+  const handleDocDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDocDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingDoc(false);
+
+    const file = e.dataTransfer.files[0];
+    if (file) {
+      await processStartingDocument(file);
+    }
+  }, [processStartingDocument]);
+
+  const clearUploadedDocument = () => {
+    setWorkingDocument('');
+    setUploadedFileName(null);
+    setDocUploadError(null);
+  };
 
   // Calculate document word count
   const documentWords = useMemo(() =>
@@ -209,22 +297,103 @@ export function SessionSetup() {
       {/* Initial Document (optional) */}
       <Card>
         <CardContent className="py-5">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-              <FileText className="h-5 w-5 text-zinc-600" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
+                <FileText className="h-5 w-5 text-zinc-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-zinc-900">Starting Document</h3>
+                <p className="text-sm text-zinc-500">Optional - upload or paste existing text to refine</p>
+              </div>
             </div>
-            <div>
-              <h3 className="font-semibold text-zinc-900">Starting Document</h3>
-              <p className="text-sm text-zinc-500">Optional - paste existing text to refine</p>
-            </div>
+            {uploadedFileName && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-lg">
+                <FileText className="h-4 w-4 text-blue-600" />
+                <span className="text-sm text-blue-700 font-medium">{uploadedFileName}</span>
+                <button
+                  onClick={clearUploadedDocument}
+                  className="p-0.5 hover:bg-blue-100 rounded transition-colors"
+                >
+                  <X className="h-4 w-4 text-blue-500" />
+                </button>
+              </div>
+            )}
           </div>
 
+          {/* Upload Zone - shown when no document */}
+          {!workingDocument && (
+            <div
+              className={clsx(
+                'border-2 border-dashed rounded-xl p-5 text-center transition-all duration-200 cursor-pointer mb-3',
+                isDraggingDoc
+                  ? 'border-blue-500 bg-blue-100 scale-[1.01]'
+                  : isUploadingDoc
+                  ? 'border-blue-400 bg-blue-50'
+                  : 'border-zinc-200 hover:border-blue-300 hover:bg-blue-50/30'
+              )}
+              onClick={() => docFileInputRef.current?.click()}
+              onDragEnter={handleDocDragEnter}
+              onDragLeave={handleDocDragLeave}
+              onDragOver={handleDocDragOver}
+              onDrop={handleDocDrop}
+            >
+              <input
+                ref={docFileInputRef}
+                type="file"
+                accept=".docx,.pdf,.txt,.md"
+                onChange={handleDocFileUpload}
+                className="hidden"
+              />
+              <div className={clsx(
+                "w-10 h-10 rounded-lg flex items-center justify-center mx-auto mb-2 transition-colors",
+                isDraggingDoc ? "bg-blue-200" : "bg-zinc-100"
+              )}>
+                <Upload className={clsx(
+                  "h-5 w-5 transition-colors",
+                  isDraggingDoc ? "text-blue-600" : isUploadingDoc ? "text-blue-500" : "text-zinc-400"
+                )} />
+              </div>
+              <p className="text-sm text-zinc-600">
+                {isDraggingDoc ? (
+                  <span className="text-blue-600 font-medium">Drop file here...</span>
+                ) : isUploadingDoc ? (
+                  <span className="text-blue-600">Processing...</span>
+                ) : (
+                  <>
+                    <span className="font-medium text-blue-600">Click to upload</span>{' '}
+                    or drag and drop
+                  </>
+                )}
+              </p>
+              <p className="text-xs text-zinc-400 mt-1">
+                Word, PDF, Text, or Markdown
+              </p>
+            </div>
+          )}
+
+          {/* Error Message */}
+          {docUploadError && (
+            <div className="mb-3 bg-rose-50 border border-rose-200 rounded-lg p-3 text-sm text-rose-700">
+              {docUploadError}
+            </div>
+          )}
+
+          {/* Textarea - always visible for editing */}
           <Textarea
             value={workingDocument}
-            onChange={(e) => setWorkingDocument(e.target.value)}
+            onChange={(e) => {
+              setWorkingDocument(e.target.value);
+              if (!e.target.value) setUploadedFileName(null);
+            }}
             placeholder="Paste existing text here if you want agents to revise it, or leave blank to start fresh..."
-            rows={4}
+            rows={workingDocument ? 6 : 3}
           />
+          {workingDocument && (
+            <p className="mt-2 text-xs text-zinc-400">
+              {documentWords.toLocaleString()} words
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

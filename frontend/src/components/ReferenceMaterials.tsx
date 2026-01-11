@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Upload, FileText, Trash2, ChevronDown, ChevronUp, Paperclip, Info } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ export function ReferenceMaterials() {
   const [files, setFiles] = useState<ReferenceFile[]>([]);
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { setReferenceDocuments, referenceInstructions, setReferenceInstructions } = useSessionStore();
@@ -38,15 +39,27 @@ export function ReferenceMaterials() {
     setReferenceDocuments(docs);
   };
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFiles = e.target.files;
-    if (!selectedFiles || selectedFiles.length === 0) return;
+  // Process files (shared between input and drag/drop)
+  const processFiles = useCallback(async (fileList: FileList | File[]) => {
+    const filesToProcess = Array.from(fileList);
+    if (filesToProcess.length === 0) return;
+
+    // Validate file types
+    const allowedExtensions = ['.docx', '.pdf', '.txt', '.md'];
+    const invalidFiles = filesToProcess.filter(
+      (f) => !allowedExtensions.some((ext) => f.name.toLowerCase().endsWith(ext))
+    );
+
+    if (invalidFiles.length > 0) {
+      setError(`Invalid file type(s): ${invalidFiles.map((f) => f.name).join(', ')}. Allowed: Word, PDF, Text, Markdown`);
+      return;
+    }
 
     setIsUploading(true);
     setError(null);
 
     try {
-      for (const file of Array.from(selectedFiles)) {
+      for (const file of filesToProcess) {
         const formData = new FormData();
         formData.append('file', file);
 
@@ -82,11 +95,49 @@ export function ReferenceMaterials() {
       setError(err instanceof Error ? err.message : 'Failed to upload file');
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
+    }
+  }, []);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFiles = e.target.files;
+    if (!selectedFiles || selectedFiles.length === 0) return;
+    await processFiles(selectedFiles);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Only set dragging false if we're leaving the drop zone entirely
+    if (e.currentTarget === e.target) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(async (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const droppedFiles = e.dataTransfer.files;
+    if (droppedFiles.length > 0) {
+      await processFiles(droppedFiles);
+    }
+  }, [processFiles]);
 
   const removeFile = (id: string) => {
     setFiles((prev) => {
@@ -144,15 +195,21 @@ export function ReferenceMaterials() {
           )}
         </div>
 
-        {/* Upload Area */}
+        {/* Upload Area with Drag/Drop */}
         <div
           className={clsx(
             'border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 cursor-pointer',
-            isUploading
+            isDragging
+              ? 'border-violet-500 bg-violet-100 scale-[1.02]'
+              : isUploading
               ? 'border-violet-400 bg-violet-50'
               : 'border-zinc-200 hover:border-violet-300 hover:bg-violet-50/30'
           )}
           onClick={() => fileInputRef.current?.click()}
+          onDragEnter={handleDragEnter}
+          onDragLeave={handleDragLeave}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
         >
           <input
             ref={fileInputRef}
@@ -162,14 +219,19 @@ export function ReferenceMaterials() {
             onChange={handleFileUpload}
             className="hidden"
           />
-          <div className="w-12 h-12 rounded-xl bg-zinc-100 flex items-center justify-center mx-auto mb-3">
+          <div className={clsx(
+            "w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-3 transition-colors",
+            isDragging ? "bg-violet-200" : "bg-zinc-100"
+          )}>
             <Upload className={clsx(
               "h-6 w-6 transition-colors",
-              isUploading ? "text-violet-500" : "text-zinc-400"
+              isDragging ? "text-violet-600" : isUploading ? "text-violet-500" : "text-zinc-400"
             )} />
           </div>
           <p className="text-sm text-zinc-600">
-            {isUploading ? (
+            {isDragging ? (
+              <span className="text-violet-600 font-medium">Drop files here...</span>
+            ) : isUploading ? (
               <span className="text-violet-600">Processing...</span>
             ) : (
               <>

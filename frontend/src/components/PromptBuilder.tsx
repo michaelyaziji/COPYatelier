@@ -53,6 +53,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
       outletType: '',
       customOutletType: '',
       audience: '',
+      customAudience: '',
       lengthRange: '',
       readingLevel: '',
     });
@@ -133,17 +134,32 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
             </div>
 
             {/* Audience */}
-            <Select
-              label="Target Audience"
-              value={selections.audience}
-              onValueChange={(value) =>
-                updateSelections({
-                  audience: value as AudienceType,
-                })
-              }
-              options={AUDIENCE_OPTIONS}
-              placeholder="Select audience..."
-            />
+            <div>
+              <Select
+                label="Target Audience"
+                value={selections.audience}
+                onValueChange={(value) =>
+                  updateSelections({
+                    audience: value as AudienceType,
+                    customAudience: value !== 'other' ? '' : selections.customAudience,
+                  })
+                }
+                options={AUDIENCE_OPTIONS}
+                placeholder="Select audience..."
+              />
+              {selections.audience === 'other' && (
+                <Input
+                  value={selections.customAudience}
+                  onChange={(e) =>
+                    updateSelections({
+                      customAudience: e.target.value,
+                    })
+                  }
+                  placeholder="Specify target audience..."
+                  className="mt-2"
+                />
+              )}
+            </div>
 
             {/* Length Range */}
             <Select
@@ -172,21 +188,6 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
             />
           </div>
 
-          {/* Action Buttons */}
-          <div className="flex items-center justify-between mt-4 pt-4 border-t border-zinc-200">
-            <Button variant="ghost" size="sm" onClick={handleClear} disabled={!hasSelections}>
-              Clear All
-            </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={handleGenerate}
-              disabled={!hasSelections}
-            >
-              <Wand2 className="h-4 w-4" />
-              Generate Prompt
-            </Button>
-          </div>
         </div>
       )}
     </div>

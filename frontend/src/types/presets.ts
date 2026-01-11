@@ -5,6 +5,8 @@ export type OutletType =
   | 'nonfiction_book_chapter'
   | 'self_help_book'
   | 'blog_post'
+  | 'linkedin_post'
+  | 'fictional_story'
   | 'white_paper'
   | 'other';
 
@@ -14,6 +16,8 @@ export const OUTLET_TYPE_OPTIONS = [
   { value: 'nonfiction_book_chapter', label: 'Nonfiction Book Chapter' },
   { value: 'self_help_book', label: 'Self-Help Book' },
   { value: 'blog_post', label: 'Blog Post' },
+  { value: 'linkedin_post', label: 'LinkedIn Post' },
+  { value: 'fictional_story', label: 'Fictional Story / Chapter' },
   { value: 'white_paper', label: 'White Paper / Report' },
   { value: 'other', label: 'Other (specify)' },
 ];
@@ -25,7 +29,8 @@ export type AudienceType =
   | 'academics'
   | 'industry_professionals'
   | 'students'
-  | 'executives';
+  | 'executives'
+  | 'other';
 
 export const AUDIENCE_OPTIONS = [
   { value: 'general_public', label: 'General Public' },
@@ -34,6 +39,7 @@ export const AUDIENCE_OPTIONS = [
   { value: 'industry_professionals', label: 'Industry Professionals' },
   { value: 'students', label: 'Students' },
   { value: 'executives', label: 'Executives / Leadership' },
+  { value: 'other', label: 'Other (specify)' },
 ];
 
 // Length Range Options
@@ -61,6 +67,7 @@ export interface PresetSelections {
   outletType: OutletType | '';
   customOutletType: string;
   audience: AudienceType | '';
+  customAudience: string;
   lengthRange: LengthRange | '';
   readingLevel: ReadingLevel | '';
 }
@@ -83,9 +90,13 @@ export function generatePresetContext(selections: PresetSelections): string {
 
   // Audience
   if (selections.audience) {
-    const audience = AUDIENCE_OPTIONS.find((a) => a.value === selections.audience);
-    if (audience) {
-      parts.push(`Target Audience: ${audience.label}`);
+    if (selections.audience === 'other' && selections.customAudience) {
+      parts.push(`Target Audience: ${selections.customAudience}`);
+    } else {
+      const audience = AUDIENCE_OPTIONS.find((a) => a.value === selections.audience);
+      if (audience && audience.value !== 'other') {
+        parts.push(`Target Audience: ${audience.label}`);
+      }
     }
   }
 

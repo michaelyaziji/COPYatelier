@@ -23,9 +23,13 @@ export function generatePromptTemplate(selections: PresetSelections): string {
 
   // Audience
   if (selections.audience) {
-    const audience = AUDIENCE_OPTIONS.find((a) => a.value === selections.audience);
-    if (audience) {
-      parts.push(`for ${audience.label.toLowerCase()}`);
+    if (selections.audience === 'other' && selections.customAudience) {
+      parts.push(`for ${selections.customAudience.toLowerCase()}`);
+    } else {
+      const audience = AUDIENCE_OPTIONS.find((a) => a.value === selections.audience);
+      if (audience && audience.value !== 'other') {
+        parts.push(`for ${audience.label.toLowerCase()}`);
+      }
     }
   }
 
