@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # Frontend URL (for Stripe redirect)
     frontend_url: str = "http://localhost:3000"
 
+    # Email (Resend)
+    resend_api_key: str = ""
+    resend_from_email: str = "Atelier <onboarding@resend.dev>"
+
     # CORS Configuration
     # Comma-separated list of allowed origins. In production, set to your domain.
     cors_origins: str = "http://localhost:3000"
