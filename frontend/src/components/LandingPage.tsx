@@ -126,7 +126,7 @@ export function LandingPage() {
                 <p className="text-zinc-600 leading-relaxed">
                   Your AI writer creates a draft, editors provide feedback, and the writer revises.
                   Have them iterate independently as much as you want.
-                  Download your finished document as Word or have it emailed directly to you.
+                  Download your finished document as Word and/or email it out.
                 </p>
               </div>
             </div>
