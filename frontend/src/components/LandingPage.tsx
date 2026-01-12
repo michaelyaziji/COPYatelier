@@ -170,7 +170,7 @@ export function LandingPage() {
             <FeatureCard
               icon={<CheckCircle2 className="h-6 w-6" />}
               title="Quality Scoring"
-              description="Each revision includes self-assessment scores so you can track improvement."
+              description="Each revision includes self-assessment scores so you can track improvement and set the quality level you seek."
               color="rose"
             />
             <FeatureCard
