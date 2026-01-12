@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenTool, Settings2, FileText, AlertCircle, Upload, X, ArrowRight } from 'lucide-react';
+import { PenTool, Settings2, FileText, AlertCircle, Upload, X, ArrowRight, AlertTriangle } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,6 +26,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
     setInitialPrompt,
     workingDocument,
     setWorkingDocument,
+    referenceDocuments,
     maxRounds,
     setMaxRounds,
     scoreThreshold,
@@ -129,6 +130,17 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
     workingDocument ? workingDocument.split(/\s+/).filter(w => w.length > 0).length : 0,
     [workingDocument]
   );
+
+  // Calculate total word count including reference documents
+  const referenceWords = useMemo(() => {
+    return Object.values(referenceDocuments).reduce((total, content) => {
+      return total + content.split(/\s+/).filter(w => w.length > 0).length;
+    }, 0);
+  }, [referenceDocuments]);
+
+  const totalWords = documentWords + referenceWords;
+  const WORD_WARNING_THRESHOLD = 8000;
+  const isLongDocument = totalWords > WORD_WARNING_THRESHOLD;
 
   // Fetch estimate when relevant parameters change
   useEffect(() => {
@@ -276,6 +288,22 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
           >
             Get Credits
           </Link>
+        </div>
+      )}
+
+      {/* Long Document Warning */}
+      {isLongDocument && (
+        <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+          <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-amber-800">
+              Large document detected ({totalWords.toLocaleString()} words)
+            </p>
+            <p className="text-sm text-amber-700 mt-1">
+              For documents over {WORD_WARNING_THRESHOLD.toLocaleString()} words, we recommend using Claude or Gemini models
+              which have larger context windows. GPT-4o may truncate very long content.
+            </p>
+          </div>
         </div>
       )}
 
