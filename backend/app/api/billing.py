@@ -246,7 +246,7 @@ async def create_credit_checkout(
 
         session = stripe.checkout.Session.create(**checkout_params)
 
-        logger.info(f"Created credit checkout session {session.id} for user {user.id}, {request.credits} credits")
+        logger.info(f"Created credit checkout session {session.id} for user {user.id}, {body.credits} credits")
         return CheckoutResponse(checkout_url=session.url, session_id=session.id)
 
     except stripe.error.StripeError as e:

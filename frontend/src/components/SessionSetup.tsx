@@ -10,6 +10,7 @@ import { ReferenceMaterials } from '@/components/ReferenceMaterials';
 import { PromptBuilder } from '@/components/PromptBuilder';
 import { useSessionStore } from '@/store/session';
 import { useCreditsStore } from '@/store/credits';
+import { API_BASE } from '@/lib/api';
 import { clsx } from 'clsx';
 
 export function SessionSetup() {
@@ -52,7 +53,7 @@ export function SessionSetup() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/api/v1/files/parse', {
+      const response = await fetch(`${API_BASE}/files/parse`, {
         method: 'POST',
         body: formData,
       });

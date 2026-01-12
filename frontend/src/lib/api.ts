@@ -2,7 +2,7 @@
 
 import { SessionConfig, SessionState, CreditBalance, CreditTransaction, CreditEstimate, Subscription, CheckoutResponse, PortalResponse } from '@/types';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1';
 
 // Token getter function - will be set by the auth provider
 let getAuthToken: (() => Promise<string | null>) | null = null;

@@ -34,7 +34,7 @@ function extractStreamContent(content: string): string {
     }
 
     // Try to extract partial output using regex
-    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/s);
+    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
     if (outputMatch) {
       return outputMatch[1]
         .replace(/\\n/g, '\n')

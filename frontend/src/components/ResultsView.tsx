@@ -404,7 +404,7 @@ export function ResultsView() {
                         </span>
                       </div>
                     </div>
-                    {turn.evaluation && (
+                    {turn.evaluation && turn.evaluation.overall_score != null && (
                       <span className={clsx(
                         'px-2.5 py-1 rounded-full text-xs font-semibold',
                         turn.evaluation.overall_score >= 8

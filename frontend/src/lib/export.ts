@@ -132,7 +132,7 @@ export function extractCleanContent(content: string): string {
 
   // Check for "output": pattern with various quote styles
   // Handle both "output": "value" and "output": "multi\nline\nvalue"
-  const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)"/s);
+  const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)"/)
   if (outputMatch) {
     // Unescape JSON string
     return outputMatch[1]

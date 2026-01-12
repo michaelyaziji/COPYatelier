@@ -305,7 +305,13 @@ Visit https://atelierwritereditor.com to create more.
         message_section_html = ""
         if personal_message:
             # Escape HTML in the message and convert newlines to <br>
-            escaped_message = personal_message.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;').replace('\n', '<br>')
+            escaped_message = (personal_message
+                .replace('&', '&amp;')
+                .replace('<', '&lt;')
+                .replace('>', '&gt;')
+                .replace('"', '&quot;')
+                .replace("'", '&#39;')
+                .replace('\n', '<br>'))
             message_section_html = f"""
             <div class="personal-message">
                 <div class="message-label">Message from sender</div>
