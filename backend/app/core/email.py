@@ -297,8 +297,8 @@ PREVIEW:
 
 {'-' * 40}
 
-This document was generated using Atelier - your AI writing studio.
-Visit https://atelierwritereditor.com to create more.
+✨ Made with Atelier — where AI writers and editors collaborate until it's right.
+   https://atelier-frontend-flw9.onrender.com
 """
 
         # Build personal message HTML section if provided
@@ -350,8 +350,8 @@ Visit https://atelierwritereditor.com to create more.
             <div class="preview-label">Preview</div>
             <div class="preview">{preview_content}</div>
             <div class="footer">
-                <p>This document was generated using <strong>Atelier</strong> - your AI writing studio.</p>
-                <p>Visit <a href="https://atelierwritereditor.com">atelierwritereditor.com</a> to create more.</p>
+                <p>✨ Made with <strong>Atelier</strong> — where AI writers and editors collaborate until it's right.</p>
+                <p><a href="https://atelier-frontend-flw9.onrender.com">Try Atelier</a></p>
             </div>
         </body>
         </html>
