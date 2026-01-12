@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, SignedIn, SignedOut, SignInButton } from '@clerk/nextjs';
@@ -24,7 +24,8 @@ import { clsx } from 'clsx';
 import { api } from '@/lib/api';
 import { Subscription, CreditBalance, CreditTransaction } from '@/types';
 
-export default function BillingPage() {
+// Inner component that uses useSearchParams
+function BillingContent() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [balance, setBalance] = useState<CreditBalance | null>(null);
   const [transactions, setTransactions] = useState<CreditTransaction[]>([]);
@@ -164,29 +165,7 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white">
-      {/* Header */}
-      <header className="border-b border-zinc-200/50 bg-white/80 backdrop-blur-md sticky top-0 z-50">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 group">
-              <ArrowLeft className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 transition-colors" />
-              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
-                <Sparkles className="h-5 w-5 text-white" />
-              </div>
-              <div>
-                <h1 className="text-xl font-bold text-zinc-900">Atelier</h1>
-                <p className="text-xs text-zinc-500">Billing & Subscription</p>
-              </div>
-            </Link>
-
-            <Link href="/pricing">
-              <Button variant="outline">View Plans</Button>
-            </Link>
-          </div>
-        </div>
-      </header>
-
+    <>
       <SignedOut>
         <div className="max-w-4xl mx-auto px-6 py-16 text-center">
           <h2 className="text-2xl font-bold text-zinc-900 mb-4">Sign in to view billing</h2>
@@ -397,6 +376,45 @@ export default function BillingPage() {
           </div>
         )}
       </SignedIn>
+    </>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function BillingPage() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white">
+      {/* Header */}
+      <header className="border-b border-zinc-200/50 bg-white/80 backdrop-blur-md sticky top-0 z-50">
+        <div className="max-w-4xl mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
+            <Link href="/" className="flex items-center gap-3 group">
+              <ArrowLeft className="h-4 w-4 text-zinc-400 group-hover:text-zinc-600 transition-colors" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-600 to-violet-500 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <Sparkles className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-zinc-900">Atelier</h1>
+                <p className="text-xs text-zinc-500">Billing & Subscription</p>
+              </div>
+            </Link>
+
+            <Link href="/pricing">
+              <Button variant="outline">View Plans</Button>
+            </Link>
+          </div>
+        </div>
+      </header>
+
+      {/* Content wrapped in Suspense */}
+      <Suspense fallback={
+        <div className="max-w-4xl mx-auto px-6 py-16 text-center">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-600 mx-auto mb-4" />
+          <p className="text-zinc-600">Loading...</p>
+        </div>
+      }>
+        <BillingContent />
+      </Suspense>
 
       {/* Footer */}
       <footer className="border-t border-zinc-200 bg-white mt-auto">

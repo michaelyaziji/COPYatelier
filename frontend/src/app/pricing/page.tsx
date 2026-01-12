@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { SignInButton, SignedIn, SignedOut, useAuth } from '@clerk/nextjs';
@@ -97,7 +97,8 @@ const creditPacks = {
   ],
 };
 
-export default function PricingPage() {
+// Inner component that uses useSearchParams
+function PricingContent() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loadingTier, setLoadingTier] = useState<string | null>(null);
@@ -696,5 +697,18 @@ export default function PricingPage() {
         </div>
       </footer>
     </div>
+  );
+}
+
+// Main page component with Suspense boundary
+export default function PricingPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-b from-zinc-50 to-white flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-violet-600" />
+      </div>
+    }>
+      <PricingContent />
+    </Suspense>
   );
 }

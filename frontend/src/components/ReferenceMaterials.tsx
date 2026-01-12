@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useSessionStore } from '@/store/session';
+import { API_BASE } from '@/lib/api';
 import { clsx } from 'clsx';
 
 interface ReferenceFile {
@@ -76,7 +77,7 @@ export function ReferenceMaterials() {
         const formData = new FormData();
         formData.append('file', file);
 
-        const response = await fetch('http://localhost:8000/api/v1/files/parse', {
+        const response = await fetch(`${API_BASE}/files/parse`, {
           method: 'POST',
           body: formData,
         });
