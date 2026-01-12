@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check } from 'lucide-react';
+import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check, Play } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { useSessionStore } from '@/store/session';
@@ -26,7 +27,11 @@ const roleColors: Record<WorkflowRoleId, { bg: string; text: string; border: str
   synthesizer: { bg: 'bg-emerald-100', text: 'text-emerald-600', border: 'border-emerald-200', activeBg: 'bg-emerald-50' },
 };
 
-export function WorkflowPanel() {
+interface WorkflowPanelProps {
+  onGenerate?: () => void;
+}
+
+export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
   const {
     workflowRoles,
     toggleWorkflowRole,
@@ -299,6 +304,20 @@ export function WorkflowPanel() {
             .join(' → ')}
         </p>
       </div>
+
+      {/* Generate Button */}
+      {onGenerate && (
+        <div className="flex justify-end pt-4">
+          <Button
+            size="lg"
+            onClick={onGenerate}
+            className="gap-2"
+          >
+            <Play className="h-4 w-4" />
+            Generate
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,10 +2,11 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenTool, Settings2, FileText, AlertCircle, Upload, X } from 'lucide-react';
+import { PenTool, Settings2, FileText, AlertCircle, Upload, X, ArrowRight } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { ReferenceMaterials } from '@/components/ReferenceMaterials';
 import { PromptBuilder } from '@/components/PromptBuilder';
 import { useSessionStore } from '@/store/session';
@@ -13,7 +14,11 @@ import { useCreditsStore } from '@/store/credits';
 import { API_BASE } from '@/lib/api';
 import { clsx } from 'clsx';
 
-export function SessionSetup() {
+interface SessionSetupProps {
+  onNext?: () => void;
+}
+
+export function SessionSetup({ onNext }: SessionSetupProps) {
   const {
     title,
     setTitle,
@@ -377,6 +382,21 @@ export function SessionSetup() {
           )}
         </CardContent>
       </Card>
+
+      {/* Next Step Button */}
+      {onNext && (
+        <div className="flex justify-end pt-4">
+          <Button
+            size="lg"
+            onClick={onNext}
+            disabled={!initialPrompt.trim()}
+            className="gap-2"
+          >
+            Next: Configure Workflow
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

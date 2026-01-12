@@ -339,8 +339,8 @@ export default function Home() {
 
               {/* Content Area */}
               <div className="animate-fade-in">
-                {currentStep === 1 && <SessionSetup />}
-                {currentStep === 2 && <WorkflowPanel />}
+                {currentStep === 1 && <SessionSetup onNext={() => setCurrentStep(2)} />}
+                {currentStep === 2 && <WorkflowPanel onGenerate={handleStart} />}
                 {currentStep === 3 && <ResultsView />}
               </div>
             </main>
