@@ -589,6 +589,114 @@ Do NOT rewrite the document. Produce a revision directive only."""
                 termination_reason = self._check_termination()
                 if termination_reason:
                     self.state.termination_reason = termination_reason
+
+                    # Final Writer pass to incorporate Synthesizer's feedback
+                    if phases[1] and not self.state.is_cancelled:
+                        writer = phases[1][0]  # Get the Writer agent
+                        turn_number += 1
+
+                        # Signal final polish pass
+                        yield self._create_event(StreamEventType.ROUND_START, {
+                            "round": self.state.current_round,
+                            "max_rounds": self.state.config.termination.max_rounds,
+                            "is_final_pass": True,
+                        })
+
+                        yield self._create_event(StreamEventType.AGENT_START, {
+                            "agent_id": writer.agent_id,
+                            "agent_name": writer.display_name,
+                            "turn_number": turn_number,
+                            "round_number": self.state.current_round,
+                            "phase": 1,
+                            "is_final_pass": True,
+                        })
+
+                        provider = self.providers.get(writer.provider)
+                        if provider:
+                            system_prompt = self._build_system_prompt(writer)
+                            # Special final pass prompt
+                            user_prompt = self._build_agent_prompt(writer, is_first_turn=False)
+
+                            full_response = ""
+                            model_name = writer.model.value if hasattr(writer.model, 'value') else writer.model
+
+                            try:
+                                async for token in provider.generate_stream(
+                                    system_prompt=system_prompt,
+                                    user_prompt=user_prompt,
+                                    model=model_name,
+                                    temperature=0.7,
+                                ):
+                                    full_response += token
+                                    yield self._create_event(StreamEventType.AGENT_TOKEN, {
+                                        "agent_id": writer.agent_id,
+                                        "token": token,
+                                    })
+
+                                # Parse and record
+                                expected_criteria = [c.name for c in writer.evaluation_criteria]
+                                evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
+
+                                if evaluation and '```json' in full_response:
+                                    try:
+                                        json_match = full_response.find('{')
+                                        if json_match != -1:
+                                            data = json.loads(full_response[json_match:full_response.rfind('}')+1])
+                                            output = data.get("output", full_response)
+                                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                                        output = full_response
+                                else:
+                                    output = full_response
+
+                                updated_document = self._update_working_document(writer, output)
+
+                                usage = self._calculate_turn_credits(
+                                    model=model_name,
+                                    system_prompt=system_prompt,
+                                    user_prompt=user_prompt,
+                                    response=full_response,
+                                )
+                                self.session_credits_used += usage["credits_used"]
+
+                                turn = ExchangeTurn(
+                                    turn_number=turn_number,
+                                    round_number=self.state.current_round,
+                                    agent_id=writer.agent_id,
+                                    agent_name=writer.display_name,
+                                    timestamp=datetime.now(timezone.utc),
+                                    output=output,
+                                    raw_response=full_response,
+                                    evaluation=evaluation,
+                                    parse_error=parse_error,
+                                    working_document=updated_document,
+                                    tokens_input=usage["input_tokens"],
+                                    tokens_output=usage["output_tokens"],
+                                    credits_used=usage["credits_used"],
+                                )
+                                self.state.exchange_history.append(turn)
+
+                                yield self._create_event(StreamEventType.AGENT_COMPLETE, {
+                                    "agent_id": writer.agent_id,
+                                    "agent_name": writer.display_name,
+                                    "turn_number": turn_number,
+                                    "is_final_pass": True,
+                                    "evaluation": {
+                                        "overall_score": evaluation.overall_score if evaluation else None,
+                                        "criteria_scores": [
+                                            {"criterion": cs.criterion, "score": cs.score}
+                                            for cs in (evaluation.criteria_scores if evaluation else [])
+                                        ],
+                                    } if evaluation else None,
+                                    "usage": {
+                                        "input_tokens": usage["input_tokens"],
+                                        "output_tokens": usage["output_tokens"],
+                                        "credits_used": usage["credits_used"],
+                                        "session_total_credits": self.session_credits_used,
+                                    },
+                                })
+                            except Exception as e:
+                                logger.error(f"Error in final Writer pass: {e}")
+
                     yield self._create_event(StreamEventType.SESSION_COMPLETE, {
                         "reason": termination_reason,
                         "rounds_completed": self.state.current_round,

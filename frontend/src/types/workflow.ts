@@ -118,7 +118,7 @@ Ignore: Writing quality, argument structure. That's not your domain.`,
     name: 'Synthesizing Editor',
     description: 'Combines all feedback and provides unified direction',
     phase: 3,
-    isRequired: false,
+    isRequired: true,
     defaultPrompt: `You are the senior editor. You see the whole board.
 
 Your job: Arbitrate. The other editors serve different masters (truth, style, substance). Their suggestions will conflict. You decide what matters most *for this piece, this audience, this purpose.*
