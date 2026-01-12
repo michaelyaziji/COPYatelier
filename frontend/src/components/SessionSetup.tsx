@@ -150,21 +150,23 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
   return (
     <div className="space-y-6">
       {/* Intro Explainer */}
-      <Card variant="elevated">
-        <CardContent className="py-6">
-          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Tell us about your writing project</h2>
-          <p className="text-sm text-zinc-600 leading-relaxed mb-4">
-            Describe what you want to create, set your preferences, and optionally provide reference materials
-            or an existing draft to improve. The more context you provide, the better your results will be.
+      <Card variant="elevated" className="border-2 border-violet-200 bg-gradient-to-b from-violet-50 to-white">
+        <CardContent className="py-8 text-center">
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Tell us about your writing project</h2>
+          <p className="text-sm text-zinc-600 leading-relaxed mb-6 max-w-2xl mx-auto">
+            The more context you provide, the better your results will be.
           </p>
-          <p className="text-xs text-zinc-400">
-            All fields except the main prompt are optional — use what's helpful for your project.
-          </p>
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-zinc-500">
+            <span><span className="font-semibold text-violet-600">i.</span> Describe your task</span>
+            <span><span className="font-semibold text-violet-600">ii.</span> Set preferences</span>
+            <span><span className="font-semibold text-violet-600">iii.</span> Add references <span className="text-zinc-400">(optional)</span></span>
+            <span><span className="font-semibold text-violet-600">iv.</span> Upload a draft <span className="text-zinc-400">(optional)</span></span>
+          </div>
         </CardContent>
       </Card>
 
       {/* Main Task Prompt - Most Important */}
-      <Card variant="elevated">
+      <Card variant="elevated" className="border border-zinc-200">
         <CardContent className="py-6">
           <div className="flex items-start gap-4 mb-5">
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-violet-100 to-violet-50 flex items-center justify-center flex-shrink-0">
@@ -192,7 +194,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
       </Card>
 
       {/* Session Settings */}
-      <Card>
+      <Card className="border border-zinc-200">
         <CardContent className="py-5">
           <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
@@ -281,7 +283,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
       <ReferenceMaterials />
 
       {/* Initial Document (optional) */}
-      <Card>
+      <Card className="border border-zinc-200">
         <CardContent className="py-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">

@@ -201,22 +201,19 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card variant="elevated">
-        <CardContent className="py-6">
-          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Who should work on your document?</h2>
-          <p className="text-sm text-zinc-600 leading-relaxed mb-4">
-            Build your AI editorial team below. The <strong>Writer</strong> creates your content,
+      <Card variant="elevated" className="border-2 border-violet-200 bg-gradient-to-b from-violet-50 to-white">
+        <CardContent className="py-8 text-center">
+          <h2 className="text-2xl font-bold text-zinc-900 mb-4">Who should work on your document?</h2>
+          <p className="text-sm text-zinc-600 leading-relaxed max-w-2xl mx-auto">
+            Build your AI editorial team. The <strong>Writer</strong> creates content,
             <strong> Editors</strong> review and suggest improvements, then the writer revises.
-            Add a <strong>Synthesizer</strong> to combine multiple editor perspectives into clear guidance.
-          </p>
-          <p className="text-xs text-zinc-400">
-            Click any role to toggle it on/off. Expand active roles to customize the AI model or instructions.
+            Click any role to toggle it on/off.
           </p>
         </CardContent>
       </Card>
 
       {/* Visual Workflow */}
-      <Card variant="elevated">
+      <Card variant="elevated" className="border border-zinc-200">
         <CardContent className="py-5">
           {/* Phase 1: Writer */}
           <div className="mb-6">

@@ -192,7 +192,7 @@ export function ReferenceMaterials() {
   };
 
   return (
-    <Card>
+    <Card className="border border-zinc-200">
       <CardContent className="py-5">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
