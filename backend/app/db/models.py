@@ -462,6 +462,9 @@ class CreditTransactionModel(Base):
         index=True,
     )
 
+    # Stripe checkout session ID (for purchase idempotency)
+    stripe_checkout_session_id = Column(String(100), nullable=True, unique=True, index=True)
+
     # Balance after this transaction
     balance_after = Column(Integer, nullable=False)
 

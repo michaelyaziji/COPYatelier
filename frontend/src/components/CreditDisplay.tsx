@@ -2,16 +2,17 @@
 
 import { useEffect } from 'react';
 import Link from 'next/link';
-import { Coins, TrendingDown, AlertCircle, Plus } from 'lucide-react';
+import { Coins, TrendingDown, AlertCircle } from 'lucide-react';
 import { useCreditsStore } from '@/store/credits';
 import { clsx } from 'clsx';
 
 interface CreditDisplayProps {
   className?: string;
+  showEstimate?: boolean;
 }
 
-export function CreditDisplay({ className }: CreditDisplayProps) {
-  const { balance, isLoading, fetchBalance } = useCreditsStore();
+export function CreditDisplay({ className, showEstimate = false }: CreditDisplayProps) {
+  const { balance, isLoading, fetchBalance, lastEstimate } = useCreditsStore();
 
   // Fetch balance on mount
   useEffect(() => {
@@ -31,73 +32,70 @@ export function CreditDisplay({ className }: CreditDisplayProps) {
     return null;
   }
 
-  // Calculate usage percentage
-  const usagePercentage = balance.tier_credits > 0
-    ? Math.min(100, ((balance.tier_credits - balance.balance) / balance.tier_credits) * 100)
-    : 0;
-
-  // Determine status color and show buy more when low
+  // Determine status color
   const isLow = balance.balance < 5;
   const isWarning = balance.balance < 10;
-  const showBuyMore = balance.balance < 15;
+  const hasInsufficientCredits = lastEstimate && !lastEstimate.has_sufficient_credits;
 
   return (
-    <div className={clsx('flex items-center gap-2', className)}>
-      <div
-        className={clsx(
-          'flex items-center gap-2 px-3 py-1.5 rounded-full border transition-all',
-          isLow
-            ? 'bg-red-50 border-red-200 text-red-700'
+    <Link
+      href="/pricing"
+      className={clsx(
+        'flex flex-col px-3 py-1.5 rounded-full border transition-all hover:shadow-sm',
+        hasInsufficientCredits
+          ? 'bg-red-50 border-red-200'
+          : isLow
+            ? 'bg-red-50 border-red-200'
             : isWarning
-              ? 'bg-amber-50 border-amber-200 text-amber-700'
-              : 'bg-violet-50 border-violet-200 text-violet-700',
-        )}
-        title={`${balance.balance} credits remaining (${balance.tier} tier)`}
-      >
-        {isLow ? (
-          <AlertCircle className="h-4 w-4" />
+              ? 'bg-amber-50 border-amber-200'
+              : 'bg-violet-50 border-violet-200',
+        className
+      )}
+      title="View pricing and credits"
+    >
+      {/* Balance row */}
+      <div className="flex items-center gap-1.5">
+        {hasInsufficientCredits || isLow ? (
+          <AlertCircle className="h-3.5 w-3.5 text-red-500" />
         ) : isWarning ? (
-          <TrendingDown className="h-4 w-4" />
+          <TrendingDown className="h-3.5 w-3.5 text-amber-600" />
         ) : (
-          <Coins className="h-4 w-4" />
+          <Coins className="h-3.5 w-3.5 text-violet-600" />
         )}
-
-        <div className="flex items-center gap-1.5">
-          <span className="text-sm font-semibold">{balance.balance}</span>
-          <span className="text-xs opacity-75">credits</span>
-        </div>
-
-        {/* Mini progress bar */}
-        <div className="w-12 h-1.5 rounded-full bg-white/50 overflow-hidden">
-          <div
-            className={clsx(
-              'h-full rounded-full transition-all',
-              isLow
-                ? 'bg-red-500'
-                : isWarning
-                  ? 'bg-amber-500'
-                  : 'bg-violet-500'
-            )}
-            style={{ width: `${100 - usagePercentage}%` }}
-          />
-        </div>
+        <span className={clsx(
+          'text-sm font-semibold',
+          hasInsufficientCredits || isLow
+            ? 'text-red-700'
+            : isWarning
+              ? 'text-amber-700'
+              : 'text-violet-700'
+        )}>
+          {balance.balance}
+        </span>
+        <span className={clsx(
+          'text-xs',
+          hasInsufficientCredits || isLow
+            ? 'text-red-600'
+            : isWarning
+              ? 'text-amber-600'
+              : 'text-violet-600'
+        )}>
+          credits
+        </span>
       </div>
 
-      {/* Buy More / Upgrade button when low */}
-      {showBuyMore && (
-        <Link
-          href="/pricing"
-          className={clsx(
-            'flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium transition-all',
-            isLow
-              ? 'bg-red-600 text-white hover:bg-red-700'
-              : 'bg-violet-600 text-white hover:bg-violet-700'
-          )}
-        >
-          <Plus className="h-3 w-3" />
-          {balance.tier === 'free' ? 'Upgrade' : 'Buy More'}
-        </Link>
+      {/* Estimate row - only show during setup steps */}
+      {showEstimate && lastEstimate && (
+        <div className={clsx(
+          'text-xs leading-tight',
+          hasInsufficientCredits
+            ? 'text-red-600'
+            : 'text-violet-500'
+        )}>
+          Project est: {lastEstimate.estimated_credits}
+          {hasInsufficientCredits && ' (need more)'}
+        </div>
       )}
-    </div>
+    </Link>
   );
 }

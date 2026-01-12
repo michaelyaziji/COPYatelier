@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Sparkles, AlertTriangle, ChevronRight, Zap, Settings, PanelLeftClose, PanelLeft, CreditCard, AlertCircle, Shield } from 'lucide-react';
+import { Sparkles, AlertTriangle, ChevronRight, Settings, PanelLeftClose, PanelLeft, Shield } from 'lucide-react';
 import { UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { WorkflowPanel } from '@/components/WorkflowPanel';
@@ -189,38 +189,28 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Provider Pills + Credits */}
-                <div className="hidden md:flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    {backendConnected && Object.entries(providers).map(([name, active]) => (
-                      <span
-                        key={name}
-                        className={clsx(
-                          'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                          active
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-zinc-100 text-zinc-400'
-                        )}
-                      >
-                        {active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />}
-                        {name}
-                      </span>
-                    ))}
-                  </div>
-
-                  {/* Credit Balance Display */}
-                  <CreditDisplay />
+                {/* Provider Pills */}
+                <div className="hidden md:flex items-center gap-2">
+                  {backendConnected && Object.entries(providers).map(([name, active]) => (
+                    <span
+                      key={name}
+                      className={clsx(
+                        'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
+                        active
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-zinc-100 text-zinc-400'
+                      )}
+                    >
+                      {active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />}
+                      {name}
+                    </span>
+                  ))}
                 </div>
 
-                {/* Auth + Settings */}
-                <div className="flex items-center gap-4">
-                  <Link
-                    href="/pricing"
-                    className="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
-                    title="Pricing"
-                  >
-                    <CreditCard className="h-5 w-5" />
-                  </Link>
+                {/* Auth + Settings + Credits */}
+                <div className="flex items-center gap-3">
+                  {/* Credit Balance Display with estimate on setup steps */}
+                  <CreditDisplay showEstimate={currentStep === 1 || currentStep === 2} />
                   <Link
                     href="/settings"
                     className="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"

@@ -29,12 +29,12 @@ import { api, UserProfile, UserPreferences } from '@/lib/api';
 import { Subscription, CreditBalance, CreditTransaction } from '@/types';
 import { clsx } from 'clsx';
 
-type TabId = 'profile' | 'subscription' | 'credits' | 'preferences' | 'account';
+type TabId = 'profile' | 'subscription' | 'billing' | 'preferences' | 'account';
 
 const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
   { id: 'profile', label: 'Profile', icon: User },
   { id: 'subscription', label: 'Subscription', icon: Crown },
-  { id: 'credits', label: 'Credits', icon: Zap },
+  { id: 'billing', label: 'Billing', icon: CreditCard },
   { id: 'preferences', label: 'Preferences', icon: Settings },
   { id: 'account', label: 'Account', icon: Shield },
 ];
@@ -548,59 +548,108 @@ export default function SettingsPage() {
                     </div>
                   )}
 
-                  {/* Credits Tab */}
-                  {activeTab === 'credits' && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                          <History className="h-5 w-5" />
-                          Credit History
-                        </CardTitle>
-                        <CardDescription>
-                          All your credit transactions
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {transactions.length === 0 ? (
-                          <div className="py-12 text-center text-zinc-500">
-                            <History className="h-12 w-12 mx-auto mb-4 text-zinc-300" />
-                            <p className="font-medium">No transactions yet</p>
-                            <p className="text-sm mt-1">Your credit transactions will appear here</p>
+                  {/* Billing Tab */}
+                  {activeTab === 'billing' && (
+                    <div className="space-y-6">
+                      {/* Summary Stats */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <Zap className="h-5 w-5 text-violet-600" />
+                            Credit Summary
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="grid grid-cols-3 gap-6">
+                            <div className="text-center p-4 bg-violet-50 rounded-xl">
+                              <p className="text-3xl font-bold text-violet-600">{balance?.balance || 0}</p>
+                              <p className="text-sm text-zinc-600 mt-1">Current Balance</p>
+                            </div>
+                            <div className="text-center p-4 bg-zinc-50 rounded-xl">
+                              <p className="text-3xl font-bold text-zinc-700">{balance?.lifetime_used || 0}</p>
+                              <p className="text-sm text-zinc-600 mt-1">Lifetime Used</p>
+                            </div>
+                            <div className="text-center p-4 bg-zinc-50 rounded-xl">
+                              <p className="text-3xl font-bold text-zinc-700 capitalize">{subscription?.tier || 'Free'}</p>
+                              <p className="text-sm text-zinc-600 mt-1">Current Plan</p>
+                            </div>
                           </div>
-                        ) : (
-                          <div className="divide-y divide-zinc-100 -mx-6">
-                            {transactions.map((tx) => (
-                              <div key={tx.id} className="px-6 py-4 flex items-center justify-between hover:bg-zinc-50">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-                                    {getTransactionIcon(tx.type)}
+                          <div className="mt-4 pt-4 border-t border-zinc-100 flex items-center justify-between">
+                            <p className="text-sm text-zinc-500">
+                              Monthly allocation: <span className="font-medium text-zinc-700">{balance?.tier_credits || 0} credits</span>
+                            </p>
+                            {subscription?.stripe_customer_id && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleOpenPortal}
+                                disabled={actionLoading !== null}
+                              >
+                                {actionLoading === 'portal' ? (
+                                  <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                                ) : (
+                                  <ExternalLink className="h-4 w-4 mr-2" />
+                                )}
+                                Manage Billing
+                              </Button>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+
+                      {/* Transaction History */}
+                      <Card>
+                        <CardHeader>
+                          <CardTitle className="flex items-center gap-2">
+                            <History className="h-5 w-5" />
+                            Transaction History
+                          </CardTitle>
+                          <CardDescription>
+                            All your credit transactions
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          {transactions.length === 0 ? (
+                            <div className="py-12 text-center text-zinc-500">
+                              <History className="h-12 w-12 mx-auto mb-4 text-zinc-300" />
+                              <p className="font-medium">No transactions yet</p>
+                              <p className="text-sm mt-1">Your credit transactions will appear here</p>
+                            </div>
+                          ) : (
+                            <div className="divide-y divide-zinc-100 -mx-6">
+                              {transactions.map((tx) => (
+                                <div key={tx.id} className="px-6 py-4 flex items-center justify-between hover:bg-zinc-50">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
+                                      {getTransactionIcon(tx.type)}
+                                    </div>
+                                    <div>
+                                      <p className="font-medium text-zinc-900">
+                                        {tx.description || tx.type.replace(/_/g, ' ')}
+                                      </p>
+                                      <p className="text-sm text-zinc-500">
+                                        {formatDate(tx.created_at)}
+                                      </p>
+                                    </div>
                                   </div>
-                                  <div>
-                                    <p className="font-medium text-zinc-900">
-                                      {tx.description || tx.type.replace(/_/g, ' ')}
+                                  <div className="text-right">
+                                    <p className={clsx(
+                                      'font-semibold',
+                                      tx.amount > 0 ? 'text-emerald-600' : 'text-red-600'
+                                    )}>
+                                      {tx.amount > 0 ? '+' : ''}{tx.amount} credits
                                     </p>
                                     <p className="text-sm text-zinc-500">
-                                      {formatDate(tx.created_at)}
+                                      Balance: {tx.balance_after}
                                     </p>
                                   </div>
                                 </div>
-                                <div className="text-right">
-                                  <p className={clsx(
-                                    'font-semibold',
-                                    tx.amount > 0 ? 'text-emerald-600' : 'text-red-600'
-                                  )}>
-                                    {tx.amount > 0 ? '+' : ''}{tx.amount} credits
-                                  </p>
-                                  <p className="text-sm text-zinc-500">
-                                    Balance: {tx.balance_after}
-                                  </p>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
+                              ))}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </div>
                   )}
 
                   {/* Preferences Tab */}

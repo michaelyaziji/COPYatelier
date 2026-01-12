@@ -393,13 +393,13 @@ async def sync_subscription(
             if session.payment_status == "paid" and metadata.get("type") == "credit_purchase":
                 credits = int(metadata.get("credits", 0))
                 if credits > 0:
-                    # Check if we already granted these credits (prevent double-grant)
-                    # For now, just grant them - in production you'd track session_id
+                    # Grant credits with idempotency check using stripe session ID
                     await credit_repo.grant(
                         user_id=user.id,
                         amount=credits,
                         grant_type="purchase",
                         description=f"Purchased {credits} credits",
+                        stripe_checkout_session_id=session_id,
                     )
                     logger.info(f"Synced credit purchase for user {user.id}: {credits} credits")
                     return {"status": "synced", "credits_added": credits}

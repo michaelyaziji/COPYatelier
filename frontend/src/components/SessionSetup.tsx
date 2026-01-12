@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenTool, Settings2, FileText, Coins, AlertCircle, Upload, X } from 'lucide-react';
+import { PenTool, Settings2, FileText, AlertCircle, Upload, X } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
@@ -253,60 +253,23 @@ export function SessionSetup() {
         </CardContent>
       </Card>
 
-      {/* Credit Estimate Card */}
-      {lastEstimate && (
-        <Card className={clsx(
-          'border-2',
-          lastEstimate.has_sufficient_credits
-            ? 'border-emerald-200 bg-emerald-50/50'
-            : 'border-red-200 bg-red-50/50'
-        )}>
-          <CardContent className="py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                {lastEstimate.has_sufficient_credits ? (
-                  <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                    <Coins className="h-5 w-5 text-emerald-600" />
-                  </div>
-                ) : (
-                  <div className="w-10 h-10 rounded-lg bg-red-100 flex items-center justify-center">
-                    <AlertCircle className="h-5 w-5 text-red-600" />
-                  </div>
-                )}
-                <div>
-                  <p className={clsx(
-                    'font-medium',
-                    lastEstimate.has_sufficient_credits ? 'text-emerald-900' : 'text-red-900'
-                  )}>
-                    Estimated Cost: {lastEstimate.estimated_credits} credits
-                  </p>
-                  <p className={clsx(
-                    'text-sm',
-                    lastEstimate.has_sufficient_credits ? 'text-emerald-700' : 'text-red-700'
-                  )}>
-                    Your balance: {lastEstimate.current_balance} credits
-                    {!lastEstimate.has_sufficient_credits && (
-                      <span className="ml-1">
-                        (need {lastEstimate.estimated_credits - lastEstimate.current_balance} more)
-                      </span>
-                    )}
-                  </p>
-                </div>
-              </div>
-              {!lastEstimate.has_sufficient_credits && (
-                <Link
-                  href="/pricing"
-                  className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors"
-                >
-                  Get More Credits
-                </Link>
-              )}
-            </div>
-            <p className="text-xs text-zinc-400 mt-3">
-              * Estimate based on maximum rounds. Actual cost may be lower if session ends early.
+      {/* Insufficient Credits Warning - only show when there's a problem */}
+      {lastEstimate && !lastEstimate.has_sufficient_credits && (
+        <div className="flex items-center justify-between p-4 bg-red-50 border border-red-200 rounded-xl">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-red-500" />
+            <p className="text-sm text-red-700">
+              This session needs <span className="font-medium">{lastEstimate.estimated_credits}</span> credits.
+              You have <span className="font-medium">{lastEstimate.current_balance}</span>.
             </p>
-          </CardContent>
-        </Card>
+          </div>
+          <Link
+            href="/pricing"
+            className="px-3 py-1.5 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 transition-colors"
+          >
+            Get Credits
+          </Link>
+        </div>
       )}
 
       {/* Reference Materials */}

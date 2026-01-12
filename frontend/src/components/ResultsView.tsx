@@ -9,7 +9,7 @@ import { LiveAgentPanel } from '@/components/LiveAgentPanel';
 import { downloadAsWord, extractCleanContent } from '@/lib/export';
 import { api } from '@/lib/api';
 import { clsx } from 'clsx';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export function ResultsView() {
   const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, continueEditing, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
@@ -24,6 +24,18 @@ export function ResultsView() {
   const [emailError, setEmailError] = useState<string | null>(null);
   const [showProcess, setShowProcess] = useState(false);
   const [expandedTurns, setExpandedTurns] = useState<Set<number>>(new Set());
+
+  // Refs for timeout cleanup to prevent memory leaks
+  const copyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const emailTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+      if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
+    };
+  }, []);
 
   // Fetch user email on mount
   useEffect(() => {
@@ -42,7 +54,8 @@ export function ResultsView() {
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current);
+    copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000);
   };
 
   const toggleTurn = (index: number) => {
@@ -76,7 +89,8 @@ export function ResultsView() {
       const rawDoc = sessionState.exchange_history[sessionState.exchange_history.length - 1]?.working_document || '';
       await api.emailDocument(sessionState.config.session_id, emailAddress.trim(), rawDoc, emailMessage.trim() || undefined);
       setEmailSent(true);
-      setTimeout(() => {
+      if (emailTimeoutRef.current) clearTimeout(emailTimeoutRef.current);
+      emailTimeoutRef.current = setTimeout(() => {
         setShowEmailModal(false);
         setEmailSent(false);
         setEmailMessage(''); // Reset message for next time

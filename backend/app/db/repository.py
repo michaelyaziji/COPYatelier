@@ -1097,6 +1097,44 @@ class CreditRepository:
         )
         return result.scalar_one_or_none()
 
+    async def get_balance_for_update(self, user_id: str) -> Optional[CreditBalanceModel]:
+        """
+        Get a user's credit balance with a row-level lock for atomic updates.
+
+        Uses SELECT ... FOR UPDATE to prevent race conditions during
+        concurrent credit operations.
+
+        Args:
+            user_id: User ID string
+
+        Returns:
+            CreditBalanceModel or None if not found
+        """
+        result = await self.db.execute(
+            select(CreditBalanceModel)
+            .where(CreditBalanceModel.user_id == user_id)
+            .with_for_update()
+        )
+        return result.scalar_one_or_none()
+
+    async def is_stripe_session_processed(self, stripe_session_id: str) -> bool:
+        """
+        Check if a Stripe checkout session has already been processed.
+
+        Used to prevent duplicate credit grants from webhook retries.
+
+        Args:
+            stripe_session_id: Stripe checkout session ID
+
+        Returns:
+            True if already processed, False otherwise
+        """
+        result = await self.db.execute(
+            select(CreditTransactionModel)
+            .where(CreditTransactionModel.stripe_checkout_session_id == stripe_session_id)
+        )
+        return result.scalar_one_or_none() is not None
+
     async def get_or_create_balance(
         self,
         user_id: str,
@@ -1167,7 +1205,10 @@ class CreditRepository:
         description: Optional[str] = None,
     ) -> Optional[CreditBalanceModel]:
         """
-        Deduct credits from a user's balance.
+        Deduct credits from a user's balance atomically.
+
+        Uses row-level locking to prevent race conditions when multiple
+        requests try to deduct credits simultaneously.
 
         Args:
             user_id: User ID string
@@ -1178,13 +1219,21 @@ class CreditRepository:
         Returns:
             Updated CreditBalanceModel or None if insufficient credits
         """
-        balance = await self.get_or_create_balance(user_id)
+        # First ensure balance exists (without lock)
+        await self.get_or_create_balance(user_id)
+
+        # Now get with lock for atomic check-and-deduct
+        balance = await self.get_balance_for_update(user_id)
+        if not balance:
+            logger.error(f"Balance not found for user {user_id} after creation")
+            return None
 
         if balance.balance < amount:
             logger.warning(f"Insufficient credits for user {user_id}: has {balance.balance}, needs {amount}")
+            await self.db.rollback()  # Release the lock
             return None
 
-        # Update balance
+        # Update balance (within the same transaction holding the lock)
         new_balance = balance.balance - amount
         balance.balance = new_balance
         balance.lifetime_used += amount
@@ -1213,7 +1262,8 @@ class CreditRepository:
         amount: int,
         grant_type: str,
         description: Optional[str] = None,
-    ) -> CreditBalanceModel:
+        stripe_checkout_session_id: Optional[str] = None,
+    ) -> Optional[CreditBalanceModel]:
         """
         Grant credits to a user.
 
@@ -1222,10 +1272,17 @@ class CreditRepository:
             amount: Credits to grant (positive number)
             grant_type: Type of grant (subscription_grant, purchase, refund, admin_grant)
             description: Optional transaction description
+            stripe_checkout_session_id: Stripe checkout session ID for idempotency
 
         Returns:
-            Updated CreditBalanceModel
+            Updated CreditBalanceModel, or None if already processed (idempotent)
         """
+        # Check idempotency for Stripe purchases
+        if stripe_checkout_session_id:
+            if await self.is_stripe_session_processed(stripe_checkout_session_id):
+                logger.info(f"Stripe session {stripe_checkout_session_id} already processed, skipping grant")
+                return await self.get_or_create_balance(user_id)
+
         balance = await self.get_or_create_balance(user_id)
 
         # Update balance
@@ -1234,13 +1291,14 @@ class CreditRepository:
         balance.last_grant_at = datetime.now(tz.utc)
         balance.updated_at = datetime.now(tz.utc)
 
-        # Record transaction
+        # Record transaction with stripe session ID for idempotency tracking
         transaction = CreditTransactionModel(
             user_id=user_id,
             amount=amount,  # Positive for grants
             type=grant_type,
             description=description,
             balance_after=new_balance,
+            stripe_checkout_session_id=stripe_checkout_session_id,
         )
         self.db.add(transaction)
 

@@ -73,12 +73,15 @@ export function LiveAgentPanel() {
   // Get agents in order
   const agents = Object.values(agentStreams);
 
-  // Auto-scroll to bottom when content updates
+  // Auto-scroll only the actively generating agent's panel
   useEffect(() => {
     agents.forEach((agent) => {
-      const ref = scrollRefs.current[agent.agent_id];
-      if (ref) {
-        ref.scrollTop = ref.scrollHeight;
+      // Only auto-scroll panels that are actively generating
+      if (agent.status === 'generating') {
+        const ref = scrollRefs.current[agent.agent_id];
+        if (ref) {
+          ref.scrollTop = ref.scrollHeight;
+        }
       }
     });
   }, [agents]);
