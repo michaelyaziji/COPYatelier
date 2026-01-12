@@ -33,7 +33,7 @@ class SessionConfig(BaseModel):
     project_id: Optional[str] = Field(default=None, description="Project this session belongs to")
 
     # Agents
-    agents: list[AgentConfig] = Field(..., min_length=1, max_length=4, description="1-4 configured agents")
+    agents: list[AgentConfig] = Field(..., min_length=1, max_length=5, description="1-5 configured agents")
 
     # Orchestration
     flow_type: OrchestrationFlow = Field(default=OrchestrationFlow.SEQUENTIAL)
