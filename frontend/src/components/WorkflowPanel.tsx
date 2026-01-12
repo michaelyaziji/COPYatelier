@@ -34,7 +34,7 @@ export function WorkflowPanel() {
     updateWorkflowRoleModel,
   } = useSessionStore();
 
-  const [expandedRole, setExpandedRole] = useState<WorkflowRoleId | null>(null);
+  const [expandedRole, setExpandedRole] = useState<WorkflowRoleId | null>('writer');
 
   const phase1Roles = workflowRoles.filter((r) => r.phase === 1);
   const phase2Roles = workflowRoles.filter((r) => r.phase === 2);
@@ -75,16 +75,16 @@ export function WorkflowPanel() {
           {/* Checkbox or Required indicator */}
           <div
             className={clsx(
-              'w-5 h-5 rounded flex items-center justify-center flex-shrink-0',
+              'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
               role.isRequired
-                ? 'bg-violet-600'
+                ? 'bg-violet-600 shadow-sm'
                 : role.isActive
-                ? 'bg-violet-600'
-                : 'border-2 border-zinc-300'
+                ? 'bg-violet-600 shadow-sm'
+                : 'border-2 border-zinc-300 hover:border-violet-400 hover:bg-violet-50'
             )}
           >
             {(role.isRequired || role.isActive) && (
-              <Check className="w-3 h-3 text-white" />
+              <Check className="w-4 h-4 text-white" />
             )}
           </div>
 
@@ -196,14 +196,17 @@ export function WorkflowPanel() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <Card>
-        <CardContent className="py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-zinc-900">Editorial Workflow</h2>
-            <p className="text-sm text-zinc-500 mt-1">
-              Select which roles participate in the writing process. Click a role to expand and configure its AI model.
-            </p>
-          </div>
+      <Card variant="elevated">
+        <CardContent className="py-6">
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Who should work on your document?</h2>
+          <p className="text-sm text-zinc-600 leading-relaxed mb-4">
+            Build your AI editorial team below. The <strong>Writer</strong> creates your content,
+            <strong> Editors</strong> review and suggest improvements, then the writer revises.
+            Add a <strong>Synthesizer</strong> to combine multiple editor perspectives into clear guidance.
+          </p>
+          <p className="text-xs text-zinc-400">
+            Click any role to toggle it on/off. Expand active roles to customize the AI model or instructions.
+          </p>
         </CardContent>
       </Card>
 

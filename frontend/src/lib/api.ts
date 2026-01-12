@@ -59,14 +59,28 @@ class ApiClient {
       // Handle 402 Payment Required (insufficient credits) specially
       if (response.status === 402) {
         const creditError = new Error(
-          error.detail?.message || error.detail || 'Insufficient credits'
+          error.detail?.message || (typeof error.detail === 'string' ? error.detail : 'Insufficient credits')
         ) as Error & { status: number; errorData: typeof error.detail };
         creditError.status = 402;
         creditError.errorData = error.detail;
         throw creditError;
       }
 
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      // Properly extract error message - handle both string and object detail
+      let errorMessage = `HTTP ${response.status}`;
+      if (error.detail) {
+        if (typeof error.detail === 'string') {
+          errorMessage = error.detail;
+        } else if (error.detail.message) {
+          errorMessage = error.detail.message;
+        } else if (error.detail.detail) {
+          errorMessage = error.detail.detail;
+        } else {
+          errorMessage = JSON.stringify(error.detail);
+        }
+      }
+
+      throw new Error(errorMessage);
     }
 
     return response.json();
@@ -138,7 +152,18 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
-      throw new Error(error.detail || `HTTP ${response.status}`);
+      // Properly extract error message - handle both string and object detail
+      let errorMessage = `HTTP ${response.status}`;
+      if (error.detail) {
+        if (typeof error.detail === 'string') {
+          errorMessage = error.detail;
+        } else if (error.detail.message) {
+          errorMessage = error.detail.message;
+        } else {
+          errorMessage = JSON.stringify(error.detail);
+        }
+      }
+      throw new Error(errorMessage);
     }
 
     return response;
@@ -321,10 +346,10 @@ class ApiClient {
     });
   }
 
-  async emailDocument(sessionId: string, email: string, content: string): Promise<{ status: string; message: string }> {
+  async emailDocument(sessionId: string, email: string, content: string, message?: string): Promise<{ status: string; message: string }> {
     return this.request(`/sessions/${sessionId}/email`, {
       method: 'POST',
-      body: JSON.stringify({ email, content }),
+      body: JSON.stringify({ email, content, message }),
     });
   }
 

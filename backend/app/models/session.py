@@ -21,7 +21,7 @@ class TerminationCondition(BaseModel):
         None,
         ge=1,
         le=10,
-        description="Stop when any agent's overall score reaches or exceeds this threshold"
+        description="Stop early when the synthesizing editor's score reaches or exceeds this threshold"
     )
 
 

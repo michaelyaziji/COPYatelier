@@ -121,11 +121,11 @@ export function LandingPage() {
                 </div>
                 <div className="flex items-center gap-3 mb-4">
                   <MessageSquare className="h-6 w-6 text-amber-600" />
-                  <h3 className="text-xl font-semibold text-zinc-900">Watch Them Collaborate</h3>
+                  <h3 className="text-xl font-semibold text-zinc-900">Get Polished Results</h3>
                 </div>
                 <p className="text-zinc-600 leading-relaxed">
                   Your AI writer creates a draft, editors provide feedback, and the writer revises.
-                  Multiple rounds of refinement produce polished results.
+                  Download your finished document as Word or have it emailed directly to you.
                 </p>
               </div>
             </div>

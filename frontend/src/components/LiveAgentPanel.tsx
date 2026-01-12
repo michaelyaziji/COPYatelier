@@ -1,10 +1,59 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionStore } from '@/store/session';
 import { clsx } from 'clsx';
 import { Bot, Loader2 } from 'lucide-react';
+
+/**
+ * Extract clean content from potentially JSON-wrapped streaming output.
+ * Handles partial JSON during streaming gracefully.
+ */
+function extractStreamContent(content: string): string {
+  if (!content) return '';
+
+  let cleaned = content.trim();
+
+  // Remove markdown code fences
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  cleaned = cleaned.trim();
+
+  // If it looks like JSON with an "output" field, try to extract it
+  if (cleaned.includes('"output"')) {
+    // Try full JSON parse first (for complete content)
+    try {
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+        const parsed = JSON.parse(cleaned);
+        if (parsed.output) {
+          return parsed.output;
+        }
+      }
+    } catch {
+      // Not complete JSON yet, try regex extraction
+    }
+
+    // Try to extract partial output using regex
+    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/s);
+    if (outputMatch) {
+      return outputMatch[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\');
+    }
+  }
+
+  // If no JSON structure detected, return as-is (might be plain text output)
+  // Remove common JSON artifacts if present
+  if (cleaned.startsWith('{')) {
+    cleaned = cleaned.replace(/^\{\s*"?output"?\s*:\s*"?/, '');
+    cleaned = cleaned.replace(/\\n/g, '\n');
+    cleaned = cleaned.replace(/\\"/g, '"');
+  }
+
+  return cleaned;
+}
 
 const agentColors = [
   { bg: 'bg-violet-100', text: 'text-violet-600', border: 'border-violet-200', ring: 'ring-violet-400' },
@@ -169,7 +218,7 @@ export function LiveAgentPanel() {
                 ) : (
                   <div className="prose prose-sm max-w-none">
                     <pre className="whitespace-pre-wrap text-sm text-zinc-700 font-sans leading-relaxed">
-                      {agent.content}
+                      {extractStreamContent(agent.content)}
                       {agent.status === 'generating' && (
                         <span className="inline-block w-0.5 h-4 bg-violet-500 animate-pulse ml-0.5 align-middle" />
                       )}

@@ -188,15 +188,89 @@ export function extractCleanContent(content: string): string {
 }
 
 /**
+ * Parse text and create formatted TextRun children with bold/italic support.
+ */
+function parseFormattedText(text: string): TextRun[] {
+  const runs: TextRun[] = [];
+  // Pattern to match **bold**, *italic*, or ***bold italic***
+  const pattern = /(\*\*\*.*?\*\*\*|\*\*.*?\*\*|\*[^*]+?\*)/g;
+
+  let lastIndex = 0;
+  let match;
+
+  while ((match = pattern.exec(text)) !== null) {
+    // Add text before this match
+    if (match.index > lastIndex) {
+      runs.push(new TextRun({
+        text: text.slice(lastIndex, match.index),
+        size: 22, // 11pt
+      }));
+    }
+
+    const matched = match[0];
+    if (matched.startsWith('***') && matched.endsWith('***')) {
+      runs.push(new TextRun({
+        text: matched.slice(3, -3),
+        bold: true,
+        italics: true,
+        size: 22,
+      }));
+    } else if (matched.startsWith('**') && matched.endsWith('**')) {
+      runs.push(new TextRun({
+        text: matched.slice(2, -2),
+        bold: true,
+        size: 22,
+      }));
+    } else if (matched.startsWith('*') && matched.endsWith('*')) {
+      runs.push(new TextRun({
+        text: matched.slice(1, -1),
+        italics: true,
+        size: 22,
+      }));
+    }
+
+    lastIndex = match.index + matched.length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    runs.push(new TextRun({
+      text: text.slice(lastIndex),
+      size: 22,
+    }));
+  }
+
+  return runs.length > 0 ? runs : [new TextRun({ text, size: 22 })];
+}
+
+/**
  * Generate and download a Word document from text content.
  */
-export async function downloadAsWord(content: string, filename: string = 'document') {
+export async function downloadAsWord(content: string, filename: string = 'document', title?: string) {
   // Extract clean content first
   const cleanContent = extractCleanContent(content);
 
   // Parse the content into paragraphs
   const lines = cleanContent.split('\n');
   const paragraphs: Paragraph[] = [];
+
+  // Add title if provided
+  if (title) {
+    paragraphs.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: title,
+            bold: true,
+            size: 36, // 18pt
+          }),
+        ],
+        heading: HeadingLevel.TITLE,
+        spacing: { after: 400 },
+        alignment: 'center' as const,
+      })
+    );
+  }
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -208,12 +282,12 @@ export async function downloadAsWord(content: string, filename: string = 'docume
     }
 
     // Check for markdown-style headers
-    if (trimmed.startsWith('# ')) {
+    if (trimmed.startsWith('### ')) {
       paragraphs.push(
         new Paragraph({
-          text: trimmed.slice(2),
-          heading: HeadingLevel.HEADING_1,
-          spacing: { before: 400, after: 200 },
+          text: trimmed.slice(4),
+          heading: HeadingLevel.HEADING_3,
+          spacing: { before: 240, after: 120 },
         })
       );
     } else if (trimmed.startsWith('## ')) {
@@ -221,23 +295,24 @@ export async function downloadAsWord(content: string, filename: string = 'docume
         new Paragraph({
           text: trimmed.slice(3),
           heading: HeadingLevel.HEADING_2,
-          spacing: { before: 300, after: 150 },
+          spacing: { before: 280, after: 160 },
         })
       );
-    } else if (trimmed.startsWith('### ')) {
+    } else if (trimmed.startsWith('# ')) {
       paragraphs.push(
         new Paragraph({
-          text: trimmed.slice(4),
-          heading: HeadingLevel.HEADING_3,
-          spacing: { before: 200, after: 100 },
+          text: trimmed.slice(2),
+          heading: HeadingLevel.HEADING_1,
+          spacing: { before: 360, after: 200 },
         })
       );
     } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
       // Bullet points
       paragraphs.push(
         new Paragraph({
-          children: [new TextRun(trimmed.slice(2))],
+          children: parseFormattedText(trimmed.slice(2)),
           bullet: { level: 0 },
+          spacing: { after: 80 },
         })
       );
     } else if (/^\d+\.\s/.test(trimmed)) {
@@ -245,21 +320,17 @@ export async function downloadAsWord(content: string, filename: string = 'docume
       const text = trimmed.replace(/^\d+\.\s/, '');
       paragraphs.push(
         new Paragraph({
-          children: [new TextRun(text)],
+          children: parseFormattedText(text),
           numbering: { reference: 'default-numbering', level: 0 },
+          spacing: { after: 80 },
         })
       );
     } else {
-      // Regular paragraph
+      // Regular paragraph with formatting support
       paragraphs.push(
         new Paragraph({
-          children: [
-            new TextRun({
-              text: trimmed,
-              size: 24, // 12pt
-            }),
-          ],
-          spacing: { after: 200 },
+          children: parseFormattedText(trimmed),
+          spacing: { after: 160, line: 276 }, // 1.15 line spacing
         })
       );
     }
@@ -268,7 +339,16 @@ export async function downloadAsWord(content: string, filename: string = 'docume
   const doc = new Document({
     sections: [
       {
-        properties: {},
+        properties: {
+          page: {
+            margin: {
+              top: 1440, // 1 inch
+              right: 1800, // 1.25 inch
+              bottom: 1440,
+              left: 1800,
+            },
+          },
+        },
         children: paragraphs,
       },
     ],

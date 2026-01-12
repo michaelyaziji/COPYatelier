@@ -38,13 +38,20 @@ export default function Home() {
     reset,
   } = useSessionStore();
 
-  // Clear error when navigating away from step 3
-  const handleStepChange = (stepNumber: number) => {
+  // Handle step navigation - auto-start generation when clicking step 3
+  const handleStepChange = async (stepNumber: number) => {
     if (!isRunning) {
       if (stepNumber !== 3 && error) {
-        reset(); // Clear error by resetting
+        // Just clear the error, don't reset all user input
+        useSessionStore.setState({ error: null });
       }
       setCurrentStep(stepNumber as Step);
+
+      // Auto-start generation when clicking step 3
+      if (stepNumber === 3 && !sessionState) {
+        await createAndStartStreamingSession();
+        refreshBalance();
+      }
     }
   };
 
@@ -139,8 +146,8 @@ export default function Home() {
   const steps = [
     {
       number: 1,
-      title: 'Define Task',
-      description: 'Describe what to write',
+      title: 'Your Writing Project',
+      description: 'What do you want to create?',
       complete: initialPrompt.trim().length > 0
     },
     {
@@ -205,32 +212,8 @@ export default function Home() {
                   <CreditDisplay />
                 </div>
 
-                {/* Start Button + Auth */}
+                {/* Auth + Settings */}
                 <div className="flex items-center gap-4">
-                  <Button
-                    onClick={handleStart}
-                    disabled={!canStart}
-                    size="lg"
-                    className="min-w-[140px]"
-                    title={startDisabledReason || undefined}
-                  >
-                    {isRunning ? (
-                      <>
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin mr-2" />
-                        Running...
-                      </>
-                    ) : lastEstimate && !lastEstimate.has_sufficient_credits ? (
-                      <>
-                        <AlertCircle className="h-4 w-4" />
-                        Need Credits
-                      </>
-                    ) : (
-                      <>
-                        <Zap className="h-4 w-4" />
-                        Start Writing
-                      </>
-                    )}
-                  </Button>
                   <Link
                     href="/pricing"
                     className="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"

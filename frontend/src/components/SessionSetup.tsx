@@ -143,6 +143,20 @@ export function SessionSetup() {
 
   return (
     <div className="space-y-6">
+      {/* Intro Explainer */}
+      <Card variant="elevated">
+        <CardContent className="py-6">
+          <h2 className="text-xl font-semibold text-zinc-900 mb-3">Tell us about your writing project</h2>
+          <p className="text-sm text-zinc-600 leading-relaxed mb-4">
+            Describe what you want to create, set your preferences, and optionally provide reference materials
+            or an existing draft to improve. The more context you provide, the better your results will be.
+          </p>
+          <p className="text-xs text-zinc-400">
+            All fields except the main prompt are optional — use what's helpful for your project.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Main Task Prompt - Most Important */}
       <Card variant="elevated">
         <CardContent className="py-6">
@@ -174,15 +188,18 @@ export function SessionSetup() {
       {/* Session Settings */}
       <Card>
         <CardContent className="py-5">
-          <div className="flex items-center gap-3 mb-5">
+          <div className="flex items-center gap-3 mb-2">
             <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
               <Settings2 className="h-5 w-5 text-zinc-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900">Session Settings</h3>
-              <p className="text-sm text-zinc-500">Configure how agents collaborate</p>
+              <h3 className="font-semibold text-zinc-900">How polished should it be?</h3>
+              <p className="text-sm text-zinc-500">More rounds = more refined output (uses more credits)</p>
             </div>
           </div>
+          <p className="text-xs text-zinc-400 mb-5 ml-[52px]">
+            Each round: Writer drafts → Editors review → Writer revises based on feedback
+          </p>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Input
@@ -193,8 +210,8 @@ export function SessionSetup() {
             />
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                Rounds
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Number of Rounds
               </label>
               <input
                 type="number"
@@ -202,16 +219,16 @@ export function SessionSetup() {
                 max={10}
                 value={maxRounds}
                 onChange={(e) => setMaxRounds(parseInt(e.target.value) || 3)}
-                className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border-2 border-zinc-200 rounded-xl text-sm bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white hover:border-violet-300 hover:bg-white transition-all"
               />
-              <p className="mt-1 text-xs text-zinc-400">
-                Refinement cycles
+              <p className="mt-1.5 text-xs text-zinc-400">
+                More rounds = more polished (uses more credits)
               </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-1.5">
-                Target Score
+              <label className="block text-sm font-medium text-zinc-700 mb-2">
+                Target Quality (1-10)
               </label>
               <input
                 type="number"
@@ -225,10 +242,10 @@ export function SessionSetup() {
                   )
                 }
                 placeholder="Optional"
-                className="w-full px-4 py-2.5 border border-zinc-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                className="w-full px-4 py-3 border-2 border-zinc-200 rounded-xl text-sm bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white hover:border-violet-300 hover:bg-white transition-all placeholder:text-zinc-400"
               />
-              <p className="mt-1 text-xs text-zinc-400">
-                Stop when reached
+              <p className="mt-1.5 text-xs text-zinc-400">
+                Stop early when the synthesizing editor scores this or higher
               </p>
             </div>
           </div>
@@ -303,7 +320,7 @@ export function SessionSetup() {
                 <FileText className="h-5 w-5 text-zinc-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900">Starting Document</h3>
+                <h3 className="font-semibold text-zinc-900">Do you have a draft to improve?</h3>
                 <p className="text-sm text-zinc-500">Optional - upload or paste existing text to refine</p>
               </div>
             </div>

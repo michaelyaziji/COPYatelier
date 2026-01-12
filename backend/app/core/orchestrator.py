@@ -412,18 +412,32 @@ Do NOT rewrite the document. Produce a revision directive only."""
         if self.state.current_round >= self.state.config.termination.max_rounds:
             return f"Maximum rounds reached ({self.state.config.termination.max_rounds})"
 
-        # Check score threshold
+        # Check score threshold - only based on synthesizer (phase 3) scores
         if self.state.config.termination.score_threshold:
             threshold = self.state.config.termination.score_threshold
 
-            # Check if any recent evaluation meets threshold
+            # Build a map of agent_id -> phase for quick lookup
+            agent_phases = {
+                agent.agent_id: agent.phase
+                for agent in self.state.config.agents
+                if agent.is_active
+            }
+
+            # Check if a synthesizer (phase 3) has evaluated and met threshold
+            # Look through recent turns for phase 3 agent evaluations
             if self.state.exchange_history:
-                last_turn = self.state.exchange_history[-1]
-                if last_turn.evaluation and last_turn.evaluation.overall_score >= threshold:
-                    return (
-                        f"Score threshold reached: {last_turn.agent_name} scored "
-                        f"{last_turn.evaluation.overall_score:.1f} (threshold: {threshold})"
-                    )
+                for turn in reversed(self.state.exchange_history):
+                    agent_phase = agent_phases.get(turn.agent_id, 1)
+                    # Only consider phase 3 (synthesizer) scores for threshold
+                    if agent_phase == 3 and turn.evaluation:
+                        if turn.evaluation.overall_score >= threshold:
+                            return (
+                                f"Quality target reached: {turn.agent_name} scored "
+                                f"{turn.evaluation.overall_score:.1f} (target: {threshold})"
+                            )
+                        # Found a phase 3 evaluation but didn't meet threshold
+                        # Don't keep looking at older turns
+                        break
 
         return None
 

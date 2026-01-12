@@ -121,8 +121,8 @@ async def get_subscription(
 @router.post("/checkout", response_model=CheckoutResponse)
 @limiter.limit("10/minute")
 async def create_checkout(
-    http_request: Request,
-    request: CheckoutRequest,
+    request: Request,
+    body: CheckoutRequest,
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -130,17 +130,17 @@ async def create_checkout(
     if not settings.stripe_secret_key:
         raise HTTPException(status_code=500, detail="Stripe is not configured")
 
-    if request.tier not in TIER_PRICES:
-        raise HTTPException(status_code=400, detail=f"Invalid tier: {request.tier}")
+    if body.tier not in TIER_PRICES:
+        raise HTTPException(status_code=400, detail=f"Invalid tier: {body.tier}")
 
     # Get the appropriate price ID
-    billing_period = "yearly" if request.yearly else "monthly"
-    price_id = TIER_PRICES[request.tier][billing_period]
+    billing_period = "yearly" if body.yearly else "monthly"
+    price_id = TIER_PRICES[body.tier][billing_period]
 
     if not price_id:
         raise HTTPException(
             status_code=500,
-            detail=f"Stripe price ID not configured for {request.tier} {billing_period}",
+            detail=f"Stripe price ID not configured for {body.tier} {billing_period}",
         )
 
     # Get or create subscription to get stripe_customer_id
@@ -157,7 +157,7 @@ async def create_checkout(
             "client_reference_id": user.id,
             "metadata": {
                 "user_id": user.id,
-                "tier": request.tier,
+                "tier": body.tier,
             },
         }
 
@@ -180,8 +180,8 @@ async def create_checkout(
 @router.post("/checkout/credits", response_model=CheckoutResponse)
 @limiter.limit("10/minute")
 async def create_credit_checkout(
-    http_request: Request,
-    request: CreditPackRequest,
+    request: Request,
+    body: CreditPackRequest,
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
@@ -202,14 +202,14 @@ async def create_credit_checkout(
 
     # Check if the credit amount is valid for their tier
     tier_packs = CREDIT_PACKS.get(subscription.tier, {})
-    if request.credits not in tier_packs:
+    if body.credits not in tier_packs:
         valid_amounts = list(tier_packs.keys())
         raise HTTPException(
             status_code=400,
             detail=f"Invalid credit amount. Valid amounts for {subscription.tier}: {valid_amounts}",
         )
 
-    price_cents = tier_packs[request.credits]
+    price_cents = tier_packs[body.credits]
 
     try:
         # Create Stripe checkout session for one-time payment
@@ -220,7 +220,7 @@ async def create_credit_checkout(
                     "price_data": {
                         "currency": "usd",
                         "product_data": {
-                            "name": f"{request.credits} Atelier Credits",
+                            "name": f"{body.credits} Atelier Credits",
                             "description": f"Credit top-up for your {subscription.tier.title()} plan",
                         },
                         "unit_amount": price_cents,
@@ -233,7 +233,7 @@ async def create_credit_checkout(
             "client_reference_id": user.id,
             "metadata": {
                 "user_id": user.id,
-                "credits": str(request.credits),
+                "credits": str(body.credits),
                 "type": "credit_purchase",
             },
         }

@@ -766,6 +766,7 @@ class EmailDocumentRequest(BaseModel):
     """Request body for emailing a document."""
     email: str
     content: str
+    message: Optional[str] = None  # Optional personal message to include
 
 
 @router.post("/sessions/{session_id}/email")
@@ -802,6 +803,7 @@ async def email_document(
             to_email=body.email,
             document_content=body.content,
             session_title=db_session.title,
+            personal_message=body.message,
         )
         return {"status": "sent", "message": f"Document emailed to {body.email}"}
     except ValueError as e:
@@ -1420,8 +1422,8 @@ class CreditEstimateRequest(BaseModel):
 @router.post("/credits/estimate")
 @limiter.limit("30/minute")
 async def estimate_session_credits(
-    http_request: Request,
-    request: CreditEstimateRequest,
+    request: Request,
+    body: CreditEstimateRequest,
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1441,9 +1443,9 @@ async def estimate_session_credits(
 
     # Calculate estimate
     estimated = calc_estimate(
-        agents=request.agents,
-        max_rounds=request.max_rounds,
-        document_words=request.document_words,
+        agents=body.agents,
+        max_rounds=body.max_rounds,
+        document_words=body.document_words,
     )
 
     # Get current balance
@@ -1452,7 +1454,7 @@ async def estimate_session_credits(
 
     # Calculate per-agent breakdown
     agent_breakdown = []
-    for agent in request.agents:
+    for agent in body.agents:
         model = agent.get("model", "claude-sonnet-4-5-20250929")
         from ..core.credits import get_model_multiplier
         multiplier = get_model_multiplier(model)

@@ -36,9 +36,13 @@ class Settings(BaseSettings):
     # Frontend URL (for Stripe redirect)
     frontend_url: str = "http://localhost:3000"
 
-    # Email (Resend)
-    resend_api_key: str = ""
-    resend_from_email: str = "Atelier <onboarding@resend.dev>"
+    # Email Configuration (SMTP)
+    smtp_host: str = "smtp.hostinger.com"
+    smtp_port: int = 465
+    smtp_username: str = ""  # e.g., info@atelierwritereditor.com
+    smtp_password: str = ""
+    smtp_from_email: str = "Atelier <info@atelierwritereditor.com>"
+    smtp_use_ssl: bool = True  # Use SSL (port 465) vs TLS (port 587)
 
     # CORS Configuration
     # Comma-separated list of allowed origins. In production, set to your domain.

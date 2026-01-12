@@ -29,23 +29,23 @@ export function Select({
   return (
     <div className={clsx('w-full', className)}>
       {label && (
-        <label className="block text-sm font-medium text-zinc-700 mb-1.5">
+        <label className="block text-sm font-medium text-zinc-700 mb-2">
           {label}
         </label>
       )}
       <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
         <SelectPrimitive.Trigger
           className={clsx(
-            'w-full flex items-center justify-between px-4 py-2.5',
-            'border border-zinc-200 rounded-xl bg-white text-sm',
-            'hover:border-zinc-300 transition-all duration-200',
-            'focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent',
+            'w-full flex items-center justify-between px-4 py-3',
+            'border-2 border-zinc-200 rounded-xl bg-zinc-50 text-sm',
+            'hover:border-violet-300 hover:bg-white transition-all duration-200',
+            'focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white',
             'text-left text-zinc-900'
           )}
         >
           <SelectPrimitive.Value placeholder={placeholder} />
           <SelectPrimitive.Icon>
-            <ChevronDown className="h-4 w-4 text-zinc-400" />
+            <ChevronDown className="h-5 w-5 text-zinc-400" />
           </SelectPrimitive.Icon>
         </SelectPrimitive.Trigger>
 

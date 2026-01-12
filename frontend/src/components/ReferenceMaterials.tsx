@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Upload, FileText, Trash2, ChevronDown, ChevronUp, Paperclip, Info } from 'lucide-react';
+import { Upload, FileText, Trash2, ChevronDown, ChevronUp, Paperclip } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -43,6 +43,19 @@ export function ReferenceMaterials() {
   const processFiles = useCallback(async (fileList: FileList | File[]) => {
     const filesToProcess = Array.from(fileList);
     if (filesToProcess.length === 0) return;
+
+    // Check if adding these files would exceed the limit
+    const MAX_FILES = 9;
+    if (files.length >= MAX_FILES) {
+      setError(`Maximum ${MAX_FILES} reference documents allowed. Please remove some files first.`);
+      return;
+    }
+
+    const remainingSlots = MAX_FILES - files.length;
+    if (filesToProcess.length > remainingSlots) {
+      setError(`Can only add ${remainingSlots} more file${remainingSlots !== 1 ? 's' : ''}. You selected ${filesToProcess.length}.`);
+      return;
+    }
 
     // Validate file types
     const allowedExtensions = ['.docx', '.pdf', '.txt', '.md'];
@@ -96,7 +109,7 @@ export function ReferenceMaterials() {
     } finally {
       setIsUploading(false);
     }
-  }, []);
+  }, [files.length]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFiles = e.target.files;
@@ -185,17 +198,23 @@ export function ReferenceMaterials() {
             <Paperclip className="h-5 w-5 text-zinc-600" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900">Reference Materials</h3>
-            <p className="text-sm text-zinc-500">Optional - upload context documents</p>
+            <h3 className="font-semibold text-zinc-900">Do you have reference materials?</h3>
+            <p className="text-sm text-zinc-500">Optional - upload style guides, outlines, or related documents (up to 9)</p>
           </div>
           {files.length > 0 && (
-            <span className="px-2.5 py-1 bg-violet-100 text-violet-700 text-xs font-medium rounded-full">
-              {files.length} file{files.length !== 1 ? 's' : ''}
+            <span className={clsx(
+              'px-2.5 py-1 text-xs font-medium rounded-full',
+              files.length >= 9
+                ? 'bg-amber-100 text-amber-700'
+                : 'bg-violet-100 text-violet-700'
+            )}>
+              {files.length}/9 files
             </span>
           )}
         </div>
 
-        {/* Upload Area with Drag/Drop */}
+        {/* Upload Area with Drag/Drop - hidden when at limit */}
+        {files.length < 9 ? (
         <div
           className={clsx(
             'border-2 border-dashed rounded-xl p-6 text-center transition-all duration-200 cursor-pointer',
@@ -244,6 +263,13 @@ export function ReferenceMaterials() {
             Word, PDF, Text, or Markdown
           </p>
         </div>
+        ) : (
+          <div className="border-2 border-dashed border-amber-200 bg-amber-50 rounded-xl p-4 text-center">
+            <p className="text-sm text-amber-700">
+              Maximum 9 reference documents reached. Remove a file to add more.
+            </p>
+          </div>
+        )}
 
         {/* Error Message */}
         {error && (
@@ -343,16 +369,6 @@ export function ReferenceMaterials() {
           </div>
         )}
 
-        {/* Tips */}
-        {files.length === 0 && (
-          <div className="mt-4 flex items-start gap-3 p-3 bg-blue-50 rounded-xl">
-            <Info className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-blue-700">
-              Upload style guides, outlines, or related documents to help agents
-              maintain consistency in your writing.
-            </p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
