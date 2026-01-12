@@ -106,7 +106,7 @@ export function LandingPage() {
                   <h3 className="text-xl font-semibold text-zinc-900">Choose Your Team</h3>
                 </div>
                 <p className="text-zinc-600 leading-relaxed">
-                  Pick from different AI editors - a content expert, style editor, or clarity specialist.
+                  Pick from different AI editors - a content expert, style editor, fact checker, and synthesizing editor.
                   Each brings a unique perspective to improve your writing.
                 </p>
               </div>
@@ -125,6 +125,7 @@ export function LandingPage() {
                 </div>
                 <p className="text-zinc-600 leading-relaxed">
                   Your AI writer creates a draft, editors provide feedback, and the writer revises.
+                  Have them iterate independently as much as you want.
                   Download your finished document as Word or have it emailed directly to you.
                 </p>
               </div>
