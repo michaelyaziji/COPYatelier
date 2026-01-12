@@ -27,6 +27,159 @@ const roleColors: Record<WorkflowRoleId, { bg: string; text: string; border: str
   synthesizer: { bg: 'bg-emerald-100', text: 'text-emerald-600', border: 'border-emerald-200', activeBg: 'bg-emerald-50' },
 };
 
+// RoleCard component - defined outside to prevent re-creation on parent re-render
+interface RoleCardProps {
+  role: WorkflowRoleState;
+  isExpanded: boolean;
+  onToggleExpanded: (roleId: WorkflowRoleId) => void;
+  onToggleRole: (roleId: WorkflowRoleId) => void;
+  onUpdatePrompt: (roleId: WorkflowRoleId, prompt: string) => void;
+  onUpdateModel: (roleId: WorkflowRoleId, provider: ProviderType, model: ModelType) => void;
+}
+
+function RoleCard({ role, isExpanded, onToggleExpanded, onToggleRole, onUpdatePrompt, onUpdateModel }: RoleCardProps) {
+  const Icon = roleIcons[role.id];
+  const colors = roleColors[role.id];
+  const filteredModels = MODELS.filter((m) => m.provider === role.provider);
+  const modelLabel = MODELS.find((m) => m.value === role.model)?.label || role.model;
+
+  return (
+    <div
+      className={clsx(
+        'rounded-xl border-2 transition-all duration-200',
+        role.isActive ? colors.border : 'border-zinc-200',
+        role.isActive ? colors.activeBg : 'bg-white'
+      )}
+    >
+      {/* Role Header */}
+      <div
+        className={clsx(
+          'flex items-center gap-3 p-3 cursor-pointer',
+          !role.isRequired && 'hover:bg-zinc-50'
+        )}
+        onClick={() => !role.isRequired && onToggleRole(role.id)}
+      >
+        {/* Checkbox or Required indicator */}
+        <div
+          className={clsx(
+            'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
+            role.isRequired
+              ? 'bg-violet-600 shadow-sm'
+              : role.isActive
+              ? 'bg-violet-600 shadow-sm'
+              : 'border-2 border-zinc-300 hover:border-violet-400 hover:bg-violet-50'
+          )}
+        >
+          {(role.isRequired || role.isActive) && (
+            <Check className="w-4 h-4 text-white" />
+          )}
+        </div>
+
+        {/* Icon */}
+        <div
+          className={clsx(
+            'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
+            role.isActive ? colors.bg : 'bg-zinc-100'
+          )}
+        >
+          <Icon className={clsx('w-4 h-4', role.isActive ? colors.text : 'text-zinc-400')} />
+        </div>
+
+        {/* Name and Description */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p
+              className={clsx(
+                'font-medium text-sm',
+                role.isActive ? 'text-zinc-900' : 'text-zinc-500'
+              )}
+            >
+              {role.name}
+              {role.isRequired && (
+                <span className="ml-2 text-xs text-violet-600 font-normal">(Required)</span>
+              )}
+            </p>
+            {role.isActive && (
+              <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+                {modelLabel}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-zinc-400 truncate">{role.description}</p>
+        </div>
+
+        {/* Expand button */}
+        {role.isActive && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onToggleExpanded(role.id);
+            }}
+            className="p-1 hover:bg-zinc-100 rounded"
+          >
+            {isExpanded ? (
+              <ChevronUp className="w-4 h-4 text-zinc-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-zinc-400" />
+            )}
+          </button>
+        )}
+      </div>
+
+      {/* Expanded Settings */}
+      {role.isActive && isExpanded && (
+        <div className="px-3 pb-3 border-t border-zinc-100 mt-1 pt-3 space-y-4">
+          {/* Model Selection */}
+          <div className="grid grid-cols-2 gap-3">
+            <Select
+              label="Provider"
+              value={role.provider}
+              onValueChange={(value) => {
+                const newProvider = value as ProviderType;
+                const firstModel = MODELS.find((m) => m.provider === newProvider);
+                if (firstModel) {
+                  onUpdateModel(role.id, newProvider, firstModel.value);
+                }
+              }}
+              options={PROVIDERS}
+            />
+            <Select
+              label="Model"
+              value={role.model}
+              onValueChange={(value) => onUpdateModel(role.id, role.provider, value as ModelType)}
+              options={filteredModels}
+            />
+          </div>
+
+          {/* Role Instructions */}
+          <div>
+            <label className="block text-xs font-medium text-zinc-600 mb-1.5">
+              Role Instructions
+            </label>
+            <Textarea
+              value={role.customPrompt}
+              onChange={(e) => onUpdatePrompt(role.id, e.target.value)}
+              rows={6}
+              className="text-xs"
+            />
+            <button
+              onClick={() => {
+                const defaultRole = WORKFLOW_ROLES.find((r) => r.id === role.id);
+                if (defaultRole) {
+                  onUpdatePrompt(role.id, defaultRole.defaultPrompt);
+                }
+              }}
+              className="mt-2 text-xs text-violet-600 hover:text-violet-700"
+            >
+              Reset to default
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface WorkflowPanelProps {
   onGenerate?: () => void;
 }
@@ -50,152 +203,6 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
 
   const toggleExpanded = (roleId: WorkflowRoleId) => {
     setExpandedRole(expandedRole === roleId ? null : roleId);
-  };
-
-  const RoleCard = ({ role }: { role: WorkflowRoleState }) => {
-    const Icon = roleIcons[role.id];
-    const colors = roleColors[role.id];
-    const isExpanded = expandedRole === role.id;
-    const filteredModels = MODELS.filter((m) => m.provider === role.provider);
-
-    // Find the model label
-    const modelLabel = MODELS.find((m) => m.value === role.model)?.label || role.model;
-
-    return (
-      <div
-        className={clsx(
-          'rounded-xl border-2 transition-all duration-200',
-          role.isActive ? colors.border : 'border-zinc-200',
-          role.isActive ? colors.activeBg : 'bg-white'
-        )}
-      >
-        {/* Role Header */}
-        <div
-          className={clsx(
-            'flex items-center gap-3 p-3 cursor-pointer',
-            !role.isRequired && 'hover:bg-zinc-50'
-          )}
-          onClick={() => !role.isRequired && toggleWorkflowRole(role.id)}
-        >
-          {/* Checkbox or Required indicator */}
-          <div
-            className={clsx(
-              'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-              role.isRequired
-                ? 'bg-violet-600 shadow-sm'
-                : role.isActive
-                ? 'bg-violet-600 shadow-sm'
-                : 'border-2 border-zinc-300 hover:border-violet-400 hover:bg-violet-50'
-            )}
-          >
-            {(role.isRequired || role.isActive) && (
-              <Check className="w-4 h-4 text-white" />
-            )}
-          </div>
-
-          {/* Icon */}
-          <div
-            className={clsx(
-              'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0',
-              role.isActive ? colors.bg : 'bg-zinc-100'
-            )}
-          >
-            <Icon className={clsx('w-4 h-4', role.isActive ? colors.text : 'text-zinc-400')} />
-          </div>
-
-          {/* Name and Description */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p
-                className={clsx(
-                  'font-medium text-sm',
-                  role.isActive ? 'text-zinc-900' : 'text-zinc-500'
-                )}
-              >
-                {role.name}
-                {role.isRequired && (
-                  <span className="ml-2 text-xs text-violet-600 font-normal">(Required)</span>
-                )}
-              </p>
-              {role.isActive && (
-                <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
-                  {modelLabel}
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-zinc-400 truncate">{role.description}</p>
-          </div>
-
-          {/* Expand button */}
-          {role.isActive && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                toggleExpanded(role.id);
-              }}
-              className="p-1 hover:bg-zinc-100 rounded"
-            >
-              {isExpanded ? (
-                <ChevronUp className="w-4 h-4 text-zinc-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-zinc-400" />
-              )}
-            </button>
-          )}
-        </div>
-
-        {/* Expanded Settings */}
-        {role.isActive && isExpanded && (
-          <div className="px-3 pb-3 border-t border-zinc-100 mt-1 pt-3 space-y-4">
-            {/* Model Selection */}
-            <div className="grid grid-cols-2 gap-3">
-              <Select
-                label="Provider"
-                value={role.provider}
-                onValueChange={(value) => {
-                  const newProvider = value as ProviderType;
-                  const firstModel = MODELS.find((m) => m.provider === newProvider);
-                  if (firstModel) {
-                    updateWorkflowRoleModel(role.id, newProvider, firstModel.value);
-                  }
-                }}
-                options={PROVIDERS}
-              />
-              <Select
-                label="Model"
-                value={role.model}
-                onValueChange={(value) => updateWorkflowRoleModel(role.id, role.provider, value as ModelType)}
-                options={filteredModels}
-              />
-            </div>
-
-            {/* Role Instructions */}
-            <div>
-              <label className="block text-xs font-medium text-zinc-600 mb-1.5">
-                Role Instructions
-              </label>
-              <Textarea
-                value={role.customPrompt}
-                onChange={(e) => updateWorkflowRolePrompt(role.id, e.target.value)}
-                rows={6}
-                className="text-xs"
-              />
-              <button
-                onClick={() => {
-                  const defaultRole = WORKFLOW_ROLES.find((r) => r.id === role.id);
-                  if (defaultRole) {
-                    updateWorkflowRolePrompt(role.id, defaultRole.defaultPrompt);
-                  }
-                }}
-                className="mt-2 text-xs text-violet-600 hover:text-violet-700"
-              >
-                Reset to default
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    );
   };
 
   return (
@@ -225,7 +232,15 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
             </div>
             <div className="ml-3 border-l-2 border-violet-200 pl-4">
               {phase1Roles.map((role) => (
-                <RoleCard key={role.id} role={role} />
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  isExpanded={expandedRole === role.id}
+                  onToggleExpanded={toggleExpanded}
+                  onToggleRole={toggleWorkflowRole}
+                  onUpdatePrompt={updateWorkflowRolePrompt}
+                  onUpdateModel={updateWorkflowRoleModel}
+                />
               ))}
             </div>
           </div>
@@ -252,7 +267,15 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
             </div>
             <div className="ml-3 border-l-2 border-blue-200 pl-4 space-y-2">
               {phase2Roles.map((role) => (
-                <RoleCard key={role.id} role={role} />
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  isExpanded={expandedRole === role.id}
+                  onToggleExpanded={toggleExpanded}
+                  onToggleRole={toggleWorkflowRole}
+                  onUpdatePrompt={updateWorkflowRolePrompt}
+                  onUpdateModel={updateWorkflowRoleModel}
+                />
               ))}
             </div>
           </div>
@@ -277,7 +300,15 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
             </div>
             <div className="ml-3 border-l-2 border-emerald-200 pl-4">
               {phase3Roles.map((role) => (
-                <RoleCard key={role.id} role={role} />
+                <RoleCard
+                  key={role.id}
+                  role={role}
+                  isExpanded={expandedRole === role.id}
+                  onToggleExpanded={toggleExpanded}
+                  onToggleRole={toggleWorkflowRole}
+                  onUpdatePrompt={updateWorkflowRolePrompt}
+                  onUpdateModel={updateWorkflowRoleModel}
+                />
               ))}
             </div>
           </div>
