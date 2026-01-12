@@ -299,6 +299,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
         """Create a Server-Sent Event string."""
         event_data = {
             "type": event_type.value,
+            "session_id": self.state.config.session_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             **data
         }

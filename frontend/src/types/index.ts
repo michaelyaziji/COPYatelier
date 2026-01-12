@@ -135,6 +135,7 @@ export type StreamEventType =
 
 export interface StreamEvent {
   type: StreamEventType;
+  session_id?: string;
   timestamp: string;
   [key: string]: unknown;
 }

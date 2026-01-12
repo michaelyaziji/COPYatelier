@@ -431,7 +431,13 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   },
 
   handleStreamEvent: (event: StreamEvent) => {
-    const { agentStreams, streamEvents } = get();
+    const { agentStreams, streamEvents, sessionId } = get();
+
+    // Ignore events from other sessions (prevents stale data from previous sessions)
+    if (event.session_id && sessionId && event.session_id !== sessionId) {
+      console.warn(`Ignoring event for different session: ${event.session_id} (current: ${sessionId})`);
+      return;
+    }
 
     // Add event to history
     set({ streamEvents: [...streamEvents, event] });

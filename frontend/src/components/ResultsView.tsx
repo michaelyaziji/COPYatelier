@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, AlertCircle, FileText, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Sparkles, Pencil, Download, Mail, X, Loader2, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { CheckCircle, AlertCircle, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Download, Mail, X, Loader2, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session';
@@ -12,7 +12,7 @@ import { clsx } from 'clsx';
 import { useState, useEffect, useRef } from 'react';
 
 export function ResultsView() {
-  const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, continueEditing, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
+  const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
   const { lastEstimate, refreshBalance } = useCreditsStore();
   const [copied, setCopied] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -343,16 +343,10 @@ export function ResultsView() {
                 {current_round} round{current_round !== 1 ? 's' : ''} • {exchange_history.length} turn{exchange_history.length !== 1 ? 's' : ''}
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button onClick={continueEditing} variant="primary" size="sm">
-                <Pencil className="h-4 w-4" />
-                Continue Editing
-              </Button>
-              <Button onClick={reset} variant="outline" size="sm">
-                <RotateCcw className="h-4 w-4" />
-                New Session
-              </Button>
-            </div>
+            <Button onClick={reset} variant="primary" size="sm">
+              <RotateCcw className="h-4 w-4" />
+              New Session
+            </Button>
           </div>
         </CardContent>
       </Card>
