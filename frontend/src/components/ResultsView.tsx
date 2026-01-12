@@ -471,7 +471,7 @@ export function ResultsView() {
             <Button
               size="sm"
               onClick={() => {
-                setEmailAddress(userEmail);
+                setEmailAddress('');
                 setEmailError(null);
                 setShowEmailModal(true);
               }}
