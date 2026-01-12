@@ -298,7 +298,7 @@ PREVIEW:
 {'-' * 40}
 
 ✨ Made with Atelier — where AI writers and editors collaborate until it's right.
-   https://atelier-frontend-flw9.onrender.com
+   https://atelierwritereditor.com
 """
 
         # Build personal message HTML section if provided
@@ -351,7 +351,7 @@ PREVIEW:
             <div class="preview">{preview_content}</div>
             <div class="footer">
                 <p>✨ Made with <strong>Atelier</strong> — where AI writers and editors collaborate until it's right.</p>
-                <p><a href="https://atelier-frontend-flw9.onrender.com">Try Atelier</a></p>
+                <p><a href="https://atelierwritereditor.com">Try Atelier</a></p>
             </div>
         </body>
         </html>
