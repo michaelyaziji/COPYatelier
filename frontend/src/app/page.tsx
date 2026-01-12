@@ -102,6 +102,11 @@ export default function Home() {
     }
   }, [workingDocument, sessionState, initialPrompt, isRunning]);
 
+  // Scroll to top when step changes
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [currentStep]);
+
   const { refreshBalance, lastEstimate } = useCreditsStore();
 
   const handleStart = async () => {
