@@ -173,7 +173,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
               <PenTool className="h-6 w-6 text-violet-600" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-zinc-900">What would you like to write?</h2>
+              <h2 className="text-lg font-semibold text-zinc-900"><span className="text-violet-600">i.</span> What would you like to write?</h2>
               <p className="text-sm text-zinc-500 mt-1">
                 Describe your writing task in detail. The more specific, the better the results.
               </p>
@@ -201,7 +201,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
               <Settings2 className="h-5 w-5 text-zinc-600" />
             </div>
             <div>
-              <h3 className="font-semibold text-zinc-900">How polished should it be?</h3>
+              <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">ii.</span> How polished should it be?</h3>
               <p className="text-sm text-zinc-500">More rounds = more refined output (uses more credits)</p>
             </div>
           </div>
@@ -291,7 +291,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                 <FileText className="h-5 w-5 text-zinc-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900">Do you have a draft to improve?</h3>
+                <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iv.</span> Do you have a draft to improve?</h3>
                 <p className="text-sm text-zinc-500">Optional - upload or paste existing text to refine</p>
               </div>
             </div>
