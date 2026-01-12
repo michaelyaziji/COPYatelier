@@ -67,7 +67,6 @@ export function LiveAgentPanel() {
   const currentRound = useSessionStore((state) => state.currentRound);
   const maxRounds = useSessionStore((state) => state.maxRounds);
   const isStreaming = useSessionStore((state) => state.isStreaming);
-  const isPaused = useSessionStore((state) => state.isPaused);
   const scrollRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // Get agents in order
@@ -93,33 +92,19 @@ export function LiveAgentPanel() {
   return (
     <div className="space-y-4">
       {/* Progress Header */}
-      <Card className={clsx(
-        isPaused ? 'bg-amber-50 border-amber-200' : 'bg-violet-50 border-violet-200'
-      )}>
+      <Card className="bg-violet-50 border-violet-200">
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isPaused ? (
-                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <div className="w-3 h-3 rounded-full bg-amber-500" />
-                </div>
-              ) : (
-                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-                  <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
-                </div>
-              )}
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
+                <Loader2 className="w-4 h-4 text-violet-600 animate-spin" />
+              </div>
               <div>
-                <p className={clsx(
-                  'font-semibold',
-                  isPaused ? 'text-amber-900' : 'text-violet-900'
-                )}>
+                <p className="font-semibold text-violet-900">
                   Round {currentRound} of {maxRounds}
                 </p>
-                <p className={clsx(
-                  'text-sm',
-                  isPaused ? 'text-amber-600' : 'text-violet-600'
-                )}>
-                  {isPaused ? 'Session paused' : isStreaming ? 'Agents collaborating...' : 'Complete'}
+                <p className="text-sm text-violet-600">
+                  {isStreaming ? 'Agents collaborating...' : 'Complete'}
                 </p>
               </div>
             </div>

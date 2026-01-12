@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, AlertCircle, RotateCcw, StopCircle, PauseCircle, PlayCircle, Copy, Download, Mail, X, Loader2, ChevronDown, ChevronRight, Zap } from 'lucide-react';
+import { CheckCircle, AlertCircle, RotateCcw, StopCircle, Copy, Download, Mail, X, Loader2, ChevronDown, ChevronRight, Zap } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSessionStore } from '@/store/session';
@@ -12,7 +12,7 @@ import { clsx } from 'clsx';
 import { useState, useEffect, useRef } from 'react';
 
 export function ResultsView() {
-  const { sessionState, isRunning, isStreaming, isPaused, error, reset, stopSession, pauseSession, resumeSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
+  const { sessionState, isRunning, isStreaming, error, reset, stopSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
   const { lastEstimate, refreshBalance } = useCreditsStore();
   const [copied, setCopied] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -196,25 +196,7 @@ export function ResultsView() {
           {/* Control Buttons */}
           <Card>
             <CardContent className="py-4">
-              <div className="flex items-center justify-center gap-3">
-                {isPaused ? (
-                  <Button
-                    onClick={resumeSession}
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                  >
-                    <PlayCircle className="h-4 w-4" />
-                    Resume
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={pauseSession}
-                    variant="secondary"
-                    className="bg-amber-100 hover:bg-amber-200 text-amber-700"
-                  >
-                    <PauseCircle className="h-4 w-4" />
-                    Pause
-                  </Button>
-                )}
+              <div className="flex items-center justify-center">
                 <Button
                   onClick={stopSession}
                   variant="secondary"
@@ -225,9 +207,7 @@ export function ResultsView() {
                 </Button>
               </div>
               <p className="text-xs text-zinc-500 text-center mt-2">
-                {isPaused
-                  ? 'Session paused. Click Resume to continue.'
-                  : 'Actions take effect after current agent finishes'}
+                Takes effect after current agent finishes
               </p>
             </CardContent>
           </Card>
