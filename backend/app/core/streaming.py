@@ -119,11 +119,18 @@ class StreamingOrchestrator:
         prompt_parts.append(self._get_task_instructions(agent, is_first_turn, self.state.current_round))
 
         prompt_parts.append("\n\n=== EVALUATION FORMAT ===\n")
+
+        # Different output description for Writer vs Editors
+        if agent.phase == 1:
+            output_description = "The complete document text (not suggestions - the actual content)"
+        else:
+            output_description = "Your editorial feedback or critique"
+
         prompt_parts.append(
             "After completing your task, provide a structured evaluation in the following JSON format:\n\n"
             "```json\n"
             "{\n"
-            '  "output": "Your revised text or critique goes here",\n'
+            f'  "output": "{output_description}",\n'
             '  "evaluation": {\n'
             '    "criteria_scores": [\n'
         )
@@ -214,11 +221,15 @@ class StreamingOrchestrator:
 {feedback}
 ===========================
 
+IMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.
+
 Instructions:
+- Read the editorial feedback carefully
 - Incorporate feedback that strengthens the work
 - Push back (in your self-evaluation) on suggestions that would weaken it
 - Preserve what's working
-- Produce a complete revised draft"""
+
+OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feedback - output the actual text of the document."""
 
     def _get_editor_instructions(self, agent: AgentConfig) -> str:
         """Get instructions for editor roles."""
