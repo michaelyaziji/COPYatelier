@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { SignInButton, SignedIn, SignedOut, useAuth } from '@clerk/nextjs';
-import { Check, Sparkles, Zap, Crown, ArrowLeft, Loader2 } from 'lucide-react';
+import { Check, Sparkles, Zap, Crown, ArrowLeft, Loader2, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { clsx } from 'clsx';
 import { api } from '@/lib/api';
@@ -14,6 +14,7 @@ interface PricingTier {
   name: string;
   price: number;
   credits: number;
+  creditsSubtext: string;
   description: string;
   features: string[];
   highlighted?: boolean;
@@ -26,12 +27,13 @@ const tiers: PricingTier[] = [
     name: 'Free',
     price: 0,
     credits: 20,
-    description: 'Perfect for trying out Atelier',
+    creditsSubtext: 'Best for short tasks and fast drafts',
+    description: 'Explore the workflows and test different reasoning modes',
     icon: <Sparkles className="h-6 w-6" />,
     ctaText: 'Get Started',
     features: [
-      '20 credits per month',
-      'All AI models (Haiku, Sonnet, Opus)',
+      'Fast & Balanced reasoning',
+      'Try Deep reasoning (limited)',
       'Up to 4 agents per session',
       'Basic workflow templates',
       'Export to Markdown',
@@ -41,30 +43,35 @@ const tiers: PricingTier[] = [
     name: 'Starter',
     price: 15,
     credits: 150,
-    description: 'For regular writers and content creators',
+    creditsSubtext: 'Standard monthly usage with some deep reasoning',
+    description: 'For consistent work with occasional deep reasoning',
     icon: <Zap className="h-6 w-6" />,
     ctaText: 'Subscribe',
     highlighted: true,
     features: [
-      '150 credits per month',
-      'All AI models (Haiku, Sonnet, Opus)',
+      'Monthly usage suitable for regular writing & analysis',
+      'Fast & Balanced reasoning',
+      'Deep reasoning for complex tasks (uses more credits)',
       'Up to 4 agents per session',
       'All workflow templates',
       'Export to Word & PDF',
       'Session history (90 days)',
       'Priority support',
+      'Clear usage indicators before you run a task',
     ],
   },
   {
     name: 'Pro',
     price: 30,
     credits: 500,
-    description: 'For power users and teams',
+    creditsSubtext: 'Designed for deep reasoning as a daily tool',
+    description: 'For heavy usage and frequent deep reasoning',
     icon: <Crown className="h-6 w-6" />,
     ctaText: 'Subscribe',
     features: [
-      '500 credits per month',
-      'All AI models (Haiku, Sonnet, Opus)',
+      'High-volume monthly usage',
+      'Unlimited Fast & Balanced reasoning',
+      'Deep reasoning at scale (better value per credit)',
       'Up to 4 agents per session',
       'All workflow templates',
       'Export to all formats',
@@ -77,10 +84,10 @@ const tiers: PricingTier[] = [
 ];
 
 const creditExamples = [
-  { task: 'Short blog post (500 words)', haiku: 3, sonnet: 6, opus: 12 },
-  { task: 'Long article (2,000 words)', haiku: 6, sonnet: 12, opus: 24 },
-  { task: 'Book chapter (4,000 words)', haiku: 12, sonnet: 24, opus: 48 },
-  { task: 'Full report (8,000 words)', haiku: 20, sonnet: 40, opus: 80 },
+  { task: 'Short blog post (500 words)', fast: 3, balanced: 6, deep: 12 },
+  { task: 'Long article (2,000 words)', fast: 6, balanced: 12, deep: 24 },
+  { task: 'Book chapter (4,000 words)', fast: 12, balanced: 24, deep: 48 },
+  { task: 'Full report (8,000 words)', fast: 20, balanced: 40, deep: 80 },
 ];
 
 // Credit top-up packs by tier
@@ -236,7 +243,7 @@ function PricingContent() {
           Simple, transparent pricing
         </h1>
         <p className="text-xl text-zinc-600 max-w-2xl mx-auto">
-          Choose the plan that fits your writing needs. All plans include access to every AI model.
+          Choose the plan that fits your writing needs. All plans include access to Fast, Balanced, and Deep reasoning modes.
         </p>
 
         {/* Billing Toggle */}
@@ -268,7 +275,7 @@ function PricingContent() {
       </div>
 
       {/* Pricing Cards */}
-      <div className="max-w-6xl mx-auto px-6 pb-16">
+      <div className="max-w-6xl mx-auto px-6 pb-12">
         <div className="grid md:grid-cols-3 gap-8">
           {tiers.map((tier) => {
             const yearlyPrice = Math.round(tier.price * 12 * 0.8);
@@ -342,14 +349,32 @@ function PricingContent() {
                   )}
                 </div>
 
-                <div className={clsx(
-                  'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium mb-6',
-                  tier.highlighted
-                    ? 'bg-white/20 text-white'
-                    : 'bg-violet-100 text-violet-700'
-                )}>
-                  <Zap className="h-4 w-4" />
-                  {tier.credits} credits/month
+                <div className="mb-6">
+                  <div className={clsx(
+                    'inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-medium',
+                    tier.highlighted
+                      ? 'bg-white/20 text-white'
+                      : 'bg-violet-100 text-violet-700'
+                  )}>
+                    <Zap className="h-4 w-4" />
+                    {tier.credits} credits / month
+                    <div className="relative group">
+                      <Info className="h-3.5 w-3.5 opacity-70 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-zinc-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+                        <div className="font-semibold mb-1">How credits work</div>
+                        <div>Fast reasoning uses the fewest credits</div>
+                        <div>Balanced reasoning uses standard credits</div>
+                        <div>Deep reasoning uses more credits per task</div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-zinc-900" />
+                      </div>
+                    </div>
+                  </div>
+                  <p className={clsx(
+                    'text-xs mt-1.5',
+                    tier.highlighted ? 'text-violet-200' : 'text-zinc-500'
+                  )}>
+                    {tier.creditsSubtext}
+                  </p>
                 </div>
 
                 <SignedOut>
@@ -421,6 +446,11 @@ function PricingContent() {
             );
           })}
         </div>
+
+        {/* Global footnote */}
+        <p className="text-center text-sm text-zinc-500 mt-8">
+          Note: Deep reasoning uses credits faster than standard usage.
+        </p>
       </div>
 
       {/* Credit Top-ups Section */}
@@ -556,7 +586,7 @@ function PricingContent() {
             How far do credits go?
           </h2>
           <p className="text-zinc-600 text-center mb-10 max-w-2xl mx-auto">
-            Credits vary by AI model. Haiku is most economical, Opus is most powerful.
+            Credits vary by reasoning mode. Fast is most economical, Deep is most powerful.
             Estimates assume 3 rounds with 4 agents.
           </p>
 
@@ -567,20 +597,20 @@ function PricingContent() {
                   <th className="text-left py-3 px-4 text-sm font-semibold text-zinc-900">Writing Task</th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-zinc-900">
                     <span className="inline-flex items-center gap-1.5">
-                      Haiku
-                      <span className="text-xs font-normal text-zinc-500">(fast)</span>
+                      Fast
+                      <span className="text-xs font-normal text-zinc-500">(quick drafts)</span>
                     </span>
                   </th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-zinc-900">
                     <span className="inline-flex items-center gap-1.5">
-                      Sonnet
-                      <span className="text-xs font-normal text-zinc-500">(balanced)</span>
+                      Balanced
+                      <span className="text-xs font-normal text-zinc-500">(standard)</span>
                     </span>
                   </th>
                   <th className="text-center py-3 px-4 text-sm font-semibold text-zinc-900">
                     <span className="inline-flex items-center gap-1.5">
-                      Opus
-                      <span className="text-xs font-normal text-zinc-500">(powerful)</span>
+                      Deep
+                      <span className="text-xs font-normal text-zinc-500">(complex tasks)</span>
                     </span>
                   </th>
                 </tr>
@@ -591,17 +621,17 @@ function PricingContent() {
                     <td className="py-4 px-4 text-sm text-zinc-700">{example.task}</td>
                     <td className="py-4 px-4 text-center">
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-600">
-                        {example.haiku} credits
+                        {example.fast} credits
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-violet-600">
-                        {example.sonnet} credits
+                        {example.balanced} credits
                       </span>
                     </td>
                     <td className="py-4 px-4 text-center">
                       <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-600">
-                        {example.opus} credits
+                        {example.deep} credits
                       </span>
                     </td>
                   </tr>
@@ -611,7 +641,7 @@ function PricingContent() {
           </div>
 
           <p className="text-center text-sm text-zinc-500 mt-6">
-            Mix and match models in your workflow. Use Haiku for quick drafts, Opus for final polish.
+            Mix and match reasoning modes in your workflow. Use Fast for quick drafts, Deep for final polish.
           </p>
         </div>
       </div>
@@ -646,11 +676,11 @@ function PricingContent() {
           </div>
 
           <div>
-            <h3 className="font-semibold text-zinc-900 mb-2">Which AI model should I use?</h3>
+            <h3 className="font-semibold text-zinc-900 mb-2">Which reasoning mode should I use?</h3>
             <p className="text-zinc-600">
-              <strong>Haiku</strong> is fast and economical - great for brainstorming and quick drafts.
-              <strong> Sonnet</strong> offers the best balance of quality and cost.
-              <strong> Opus</strong> produces the highest quality output for important work.
+              <strong>Fast</strong> is economical and quick - great for brainstorming and rapid drafts.
+              <strong> Balanced</strong> offers the best mix of quality and efficiency.
+              <strong> Deep</strong> produces the highest quality output for complex or important work.
             </p>
           </div>
         </div>
