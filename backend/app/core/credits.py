@@ -10,7 +10,7 @@ BASE_TOKENS_PER_CREDIT = 10_000
 # Higher values = more expensive models
 MODEL_CREDIT_MULTIPLIERS = {
     # Anthropic
-    "claude-opus-4-5-20251101": 3.0,
+    "claude-opus-4-5-20251101": 5.0,
     "claude-sonnet-4-5-20250929": 1.0,
     "claude-sonnet-4-thinking-20250514": 1.5,
     "claude-haiku-4-5-20250110": 0.25,
@@ -23,8 +23,8 @@ MODEL_CREDIT_MULTIPLIERS = {
     # OpenAI
     "gpt-4o": 1.0,
     "gpt-4o-mini": 0.25,
-    "o1": 4.0,
-    "o1-mini": 1.5,
+    "o1": 5.5,
+    "o1-mini": 2.0,
     "o3-mini": 2.0,
 }
 
