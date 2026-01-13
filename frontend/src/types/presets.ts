@@ -43,9 +43,10 @@ export const AUDIENCE_OPTIONS = [
 ];
 
 // Length Range Options
-export type LengthRange = 'short' | 'medium' | 'long' | 'very_long';
+export type LengthRange = 'brief' | 'short' | 'medium' | 'long' | 'very_long';
 
 export const LENGTH_OPTIONS = [
+  { value: 'brief', label: 'Brief (under 500 words)' },
   { value: 'short', label: 'Short (500-1,000 words)' },
   { value: 'medium', label: 'Medium (1,000-2,500 words)' },
   { value: 'long', label: 'Long (2,500-5,000 words)' },
