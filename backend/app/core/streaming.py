@@ -83,7 +83,13 @@ class StreamingOrchestrator:
         """Build the complete prompt for an agent."""
         prompt_parts = []
 
-        # 1. Reference materials (supporting documents - NOT what we're editing)
+        # 1. Original task/requirements (so all agents know what user asked for)
+        if not is_first_turn:
+            prompt_parts.append("=== ORIGINAL TASK ===\n")
+            prompt_parts.append("(The user's original request and requirements:)\n\n")
+            prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
+
+        # 2. Reference materials (supporting documents - NOT what we're editing)
         if self.state.config.reference_documents:
             prompt_parts.append("=== REFERENCE MATERIALS ===\n")
             prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
