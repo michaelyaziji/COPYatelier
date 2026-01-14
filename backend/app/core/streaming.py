@@ -24,7 +24,7 @@ def extract_content_from_response(full_response: str) -> str:
     Extract clean content from an AI response that may contain JSON.
 
     Strategy:
-    1. If there's prose BEFORE a JSON block, return that prose (includes reasoning)
+    1. If there's real prose BEFORE a JSON block, return that prose (includes reasoning)
     2. If the entire content is a JSON block, extract the "output" field
 
     Args:
@@ -44,47 +44,50 @@ def extract_content_from_response(full_response: str) -> str:
     json_block_start = cleaned.find('```json')
     if json_block_start > 0:
         before_json = cleaned[:json_block_start].strip()
-        if before_json:
+        # Make sure it's real prose, not just backticks
+        if before_json and not re.match(r'^`*$', before_json):
             return before_json
 
-    # Check if there's content BEFORE a raw JSON object
+    # Check if content starts with JSON (code block or raw)
+    if cleaned.startswith('```json') or cleaned.startswith('```\n{') or cleaned.startswith('{'):
+        # Strip code fences first
+        cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
+        cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+        cleaned = cleaned.strip()
+
+        # Try to parse JSON and extract output
+        if cleaned.startswith('{'):
+            try:
+                # Find the complete JSON object
+                json_end = cleaned.rfind('}')
+                if json_end != -1:
+                    data = json.loads(cleaned[:json_end + 1])
+                    if data.get("output"):
+                        return data["output"]
+            except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+                pass
+
+            # JSON parsing failed - try regex to extract output field
+            output_match = re.search(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned)
+            if output_match:
+                extracted = output_match.group(1)
+                # Unescape JSON string
+                extracted = extracted.replace('\\n', '\n')
+                extracted = extracted.replace('\\t', '\t')
+                extracted = extracted.replace('\\"', '"')
+                extracted = extracted.replace('\\\\', '\\')
+                return extracted
+
+        return cleaned if cleaned else full_response
+
+    # Content doesn't start with JSON - check for JSON at the end
     raw_json_match = re.search(r'\n\{\s*"(?:output|evaluation)"', cleaned)
     if raw_json_match and raw_json_match.start() > 0:
         before_json = cleaned[:raw_json_match.start()].strip()
         if before_json:
             return before_json
 
-    # No prose before JSON - extract the "output" field from JSON
-    # Strip code fences first
-    cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
-    cleaned = re.sub(r'\n?```\s*$', '', cleaned)
-    cleaned = cleaned.strip()
-
-    # Try to parse JSON and extract output
-    if cleaned.startswith('{'):
-        try:
-            # Find the complete JSON object
-            json_end = cleaned.rfind('}')
-            if json_end != -1:
-                data = json.loads(cleaned[:json_end + 1])
-                if data.get("output"):
-                    return data["output"]
-        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-            pass
-
-        # JSON parsing failed - try regex to extract output field
-        output_match = re.search(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned)
-        if output_match:
-            extracted = output_match.group(1)
-            # Unescape JSON string
-            extracted = extracted.replace('\\n', '\n')
-            extracted = extracted.replace('\\t', '\t')
-            extracted = extracted.replace('\\"', '"')
-            extracted = extracted.replace('\\\\', '\\')
-            return extracted
-
-    # Fallback: return cleaned content (without code fences)
-    return cleaned if cleaned else full_response
+    return cleaned
 
 
 class StreamEventType(str, Enum):

@@ -10,7 +10,7 @@ import { Bot, Loader2 } from 'lucide-react';
  * Extract clean content from potentially JSON-wrapped streaming output.
  *
  * Strategy:
- * 1. If there's prose BEFORE a JSON block, return that prose (includes reasoning)
+ * 1. If there's real prose BEFORE a JSON block, return that prose (includes reasoning)
  * 2. If the entire content is a JSON block, extract the "output" field
  */
 function extractStreamContent(content: string): string {
@@ -21,57 +21,61 @@ function extractStreamContent(content: string): string {
   // Check if there's content BEFORE a ```json block
   const jsonBlockStart = cleaned.indexOf('```json');
   if (jsonBlockStart > 0) {
-    // There's prose before the JSON - return it
+    // There's something before the JSON - check if it's real prose (not just whitespace/fences)
     const beforeJson = cleaned.slice(0, jsonBlockStart).trim();
-    if (beforeJson) {
+    if (beforeJson && !beforeJson.match(/^`*$/)) {
       return beforeJson;
     }
   }
 
-  // Check if there's content BEFORE a raw JSON object (not wrapped in fences)
+  // Check if content starts with ```json - if so, it's a JSON code block
+  if (cleaned.startsWith('```json') || cleaned.startsWith('```\n{') || cleaned.startsWith('{')) {
+    // Strip code fences and extract the "output" field
+    cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+    cleaned = cleaned.trim();
+
+    // Try to extract "output" field from JSON
+    if (cleaned.includes('"output"')) {
+      // Try full JSON parse first (for complete content)
+      try {
+        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          const parsed = JSON.parse(cleaned);
+          if (parsed.output) {
+            return parsed.output;
+          }
+        }
+      } catch {
+        // Not complete JSON yet, try regex extraction
+      }
+
+      // Try to extract partial output using regex (handles streaming)
+      const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
+      if (outputMatch) {
+        return outputMatch[1]
+          .replace(/\\n/g, '\n')
+          .replace(/\\t/g, '\t')
+          .replace(/\\"/g, '"')
+          .replace(/\\\\/g, '\\');
+      }
+    }
+
+    // Fallback: clean up any remaining JSON artifacts
+    if (cleaned.startsWith('{')) {
+      cleaned = cleaned.replace(/^\{\s*"?output"?\s*:\s*"?/, '');
+      cleaned = cleaned.replace(/\\n/g, '\n');
+      cleaned = cleaned.replace(/\\"/g, '"');
+    }
+
+    return cleaned;
+  }
+
+  // Content doesn't start with JSON - check for JSON at the end
   const rawJsonMatch = cleaned.match(/\n\{\s*"(?:output|evaluation)"/);
   if (rawJsonMatch && rawJsonMatch.index && rawJsonMatch.index > 0) {
     const beforeJson = cleaned.slice(0, rawJsonMatch.index).trim();
     if (beforeJson) {
       return beforeJson;
     }
-  }
-
-  // No prose before JSON - the entire content is the JSON block
-  // Strip code fences and extract the "output" field
-  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  cleaned = cleaned.trim();
-
-  // Try to extract "output" field from JSON
-  if (cleaned.includes('"output"')) {
-    // Try full JSON parse first (for complete content)
-    try {
-      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-        const parsed = JSON.parse(cleaned);
-        if (parsed.output) {
-          return parsed.output;
-        }
-      }
-    } catch {
-      // Not complete JSON yet, try regex extraction
-    }
-
-    // Try to extract partial output using regex (handles streaming)
-    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
-    if (outputMatch) {
-      return outputMatch[1]
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
-    }
-  }
-
-  // Fallback: clean up any remaining JSON artifacts
-  if (cleaned.startsWith('{')) {
-    cleaned = cleaned.replace(/^\{\s*"?output"?\s*:\s*"?/, '');
-    cleaned = cleaned.replace(/\\n/g, '\n');
-    cleaned = cleaned.replace(/\\"/g, '"');
   }
 
   return cleaned;
