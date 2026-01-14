@@ -30,7 +30,7 @@ export default function ContactPage() {
       });
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to send message. Please try again.');
+      setError(err instanceof Error ? err.message : 'Failed to send your message. Please try again later.');
     } finally {
       setIsSubmitting(false);
     }
@@ -180,7 +180,7 @@ export default function ContactPage() {
 
               <div className="space-y-4">
                 <a
-                  href="mailto:support@atelierwritereditor.com"
+                  href="mailto:info@atelierwritereditor.com"
                   className="flex items-center gap-4 p-4 rounded-xl bg-zinc-50 hover:bg-zinc-100 transition-colors group"
                 >
                   <div className="w-12 h-12 rounded-xl bg-violet-100 flex items-center justify-center group-hover:bg-violet-200 transition-colors">
@@ -188,7 +188,7 @@ export default function ContactPage() {
                   </div>
                   <div>
                     <p className="font-medium text-zinc-900">Email Us</p>
-                    <p className="text-sm text-zinc-500">support@atelierwritereditor.com</p>
+                    <p className="text-sm text-zinc-500">info@atelierwritereditor.com</p>
                   </div>
                 </a>
               </div>

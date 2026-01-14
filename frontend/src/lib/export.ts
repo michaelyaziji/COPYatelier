@@ -41,9 +41,9 @@ export function formatAgentResponse(content: string): string {
         parts.push(`**Changes Made:**\n${parsed.changes}`);
       }
 
-      // Add the output
+      // Add the output (no label - it's the main content)
       if (parsed.output) {
-        parts.push(`**Output:**\n${parsed.output}`);
+        parts.push(parsed.output);
       }
 
       // Add evaluation summary if present
@@ -88,7 +88,12 @@ export function formatAgentResponse(content: string): string {
         .replace(/\\\\/g, '\\')
         .trim();
       if (value) {
-        sections.push(`**${label}:**\n${value}`);
+        // Output is the main content, no label needed
+        if (key === 'output') {
+          sections.push(value);
+        } else {
+          sections.push(`**${label}:**\n${value}`);
+        }
       }
     }
   }

@@ -23,7 +23,11 @@ const categories: CategoryOption[] = [
   { value: 'other', label: 'Other', icon: <MessageSquarePlus className="h-4 w-4" />, description: 'General feedback' },
 ];
 
-export function FeedbackWidget() {
+interface FeedbackWidgetProps {
+  variant?: 'floating' | 'header';
+}
+
+export function FeedbackWidget({ variant = 'floating' }: FeedbackWidgetProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<FeedbackCategory | null>(null);
   const [message, setMessage] = useState('');
@@ -73,20 +77,30 @@ export function FeedbackWidget() {
 
   return (
     <>
-      {/* Floating Button */}
-      <button
-        onClick={() => setIsOpen(true)}
-        className={clsx(
-          'fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full',
-          'bg-violet-600 text-white shadow-lg shadow-violet-500/30',
-          'hover:bg-violet-700 hover:shadow-xl hover:shadow-violet-500/40',
-          'transition-all duration-200',
-          isOpen && 'opacity-0 pointer-events-none'
-        )}
-      >
-        <MessageSquarePlus className="h-5 w-5" />
-        <span className="font-medium text-sm">Feedback</span>
-      </button>
+      {/* Trigger Button - varies by variant */}
+      {variant === 'floating' ? (
+        <button
+          onClick={() => setIsOpen(true)}
+          className={clsx(
+            'fixed bottom-6 right-6 z-40 flex items-center gap-2 px-4 py-3 rounded-full',
+            'bg-violet-600 text-white shadow-lg shadow-violet-500/30',
+            'hover:bg-violet-700 hover:shadow-xl hover:shadow-violet-500/40',
+            'transition-all duration-200',
+            isOpen && 'opacity-0 pointer-events-none'
+          )}
+        >
+          <MessageSquarePlus className="h-5 w-5" />
+          <span className="font-medium text-sm">Feedback</span>
+        </button>
+      ) : (
+        <button
+          onClick={() => setIsOpen(true)}
+          title="Send Feedback"
+          className="p-2 rounded-lg text-violet-500 hover:text-violet-700 hover:bg-violet-50 transition-colors"
+        >
+          <MessageSquarePlus className="h-5 w-5" />
+        </button>
+      )}
 
       {/* Modal Overlay */}
       {isOpen && (
@@ -99,9 +113,10 @@ export function FeedbackWidget() {
       {/* Modal */}
       <div
         className={clsx(
-          'fixed bottom-6 right-6 z-50 w-96 max-w-[calc(100vw-3rem)]',
+          'fixed z-50 w-96 max-w-[calc(100vw-3rem)]',
           'bg-white rounded-2xl shadow-2xl border border-zinc-200',
           'transform transition-all duration-200',
+          variant === 'floating' ? 'bottom-6 right-6' : 'top-20 right-6',
           isOpen
             ? 'opacity-100 translate-y-0 scale-100'
             : 'opacity-0 translate-y-4 scale-95 pointer-events-none'

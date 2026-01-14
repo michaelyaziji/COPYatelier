@@ -79,9 +79,9 @@ def extract_content_from_response(full_response: str) -> str:
                     if data.get("changes"):
                         parts.append(f"**Changes Made:**\n{data['changes']}")
 
-                    # Add the output
+                    # Add the output (no label - it's the main content)
                     if data.get("output"):
-                        parts.append(f"**Output:**\n{data['output']}")
+                        parts.append(data["output"])
 
                     if parts:
                         return "\n\n".join(parts)
@@ -111,7 +111,11 @@ def extract_content_from_response(full_response: str) -> str:
                     value = value.replace('\\\\', '\\')
                     value = value.strip()
                     if value:
-                        sections.append(f"**{label}:**\n{value}")
+                        # Output is the main content, no label needed
+                        if key == "output":
+                            sections.append(value)
+                        else:
+                            sections.append(f"**{label}:**\n{value}")
 
             if sections:
                 return "\n\n".join(sections)
