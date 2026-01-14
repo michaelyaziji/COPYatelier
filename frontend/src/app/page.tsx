@@ -21,6 +21,7 @@ type Step = 1 | 2 | 3;
 export default function Home() {
   const [currentStep, setCurrentStep] = useState<Step>(1);
   const [providers, setProviders] = useState<Record<string, boolean>>({});
+  const [providerHealth, setProviderHealth] = useState<Record<string, { status: string; success_rate: number; recent_calls: number }>>({});
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -57,18 +58,25 @@ export default function Home() {
 
   const activeRoles = workflowRoles.filter((r) => r.isActive);
 
-  // Check backend connection on mount
+  // Check backend connection and provider health on mount, then poll periodically
   useEffect(() => {
     const checkBackend = async () => {
       try {
         const health = await api.healthCheck();
         setBackendConnected(true);
         setProviders(health.providers);
+        if (health.provider_health) {
+          setProviderHealth(health.provider_health);
+        }
       } catch {
         setBackendConnected(false);
       }
     };
     checkBackend();
+
+    // Poll provider health every 30 seconds
+    const interval = setInterval(checkBackend, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Check admin status
@@ -194,22 +202,57 @@ export default function Home() {
                   </div>
                 </div>
 
-                {/* Provider Pills */}
+                {/* Provider Health Status Pills */}
                 <div className="hidden md:flex items-center gap-2">
-                  {backendConnected && Object.entries(providers).map(([name, active]) => (
-                    <span
-                      key={name}
-                      className={clsx(
-                        'px-3 py-1.5 rounded-full text-xs font-medium transition-all',
-                        active
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-zinc-100 text-zinc-400'
-                      )}
-                    >
-                      {active && <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5" />}
-                      {name}
-                    </span>
-                  ))}
+                  {backendConnected && Object.entries(providers).map(([name, configured]) => {
+                    const health = providerHealth[name];
+                    const status = health?.status || 'unknown';
+
+                    // Determine colors based on health status
+                    const getStatusStyles = () => {
+                      if (!configured) return 'bg-zinc-100 text-zinc-400 border-zinc-200';
+                      switch (status) {
+                        case 'healthy':
+                          return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        case 'degraded':
+                          return 'bg-amber-50 text-amber-700 border-amber-200';
+                        case 'unhealthy':
+                          return 'bg-red-50 text-red-700 border-red-200';
+                        default: // unknown
+                          return 'bg-zinc-50 text-zinc-600 border-zinc-200';
+                      }
+                    };
+
+                    const getDotColor = () => {
+                      if (!configured) return 'bg-zinc-300';
+                      switch (status) {
+                        case 'healthy': return 'bg-emerald-500';
+                        case 'degraded': return 'bg-amber-500';
+                        case 'unhealthy': return 'bg-red-500';
+                        default: return 'bg-zinc-400';
+                      }
+                    };
+
+                    const getTooltip = () => {
+                      if (!configured) return `${name}: Not configured`;
+                      if (!health || health.recent_calls === 0) return `${name}: No recent activity`;
+                      return `${name}: ${health.success_rate}% success rate (${health.recent_calls} recent calls)`;
+                    };
+
+                    return (
+                      <span
+                        key={name}
+                        title={getTooltip()}
+                        className={clsx(
+                          'px-3 py-1.5 rounded-full text-xs font-medium transition-all border cursor-default',
+                          getStatusStyles()
+                        )}
+                      >
+                        <span className={clsx('inline-block w-1.5 h-1.5 rounded-full mr-1.5', getDotColor())} />
+                        {name}
+                      </span>
+                    );
+                  })}
                 </div>
 
                 {/* Auth + Settings + Credits */}

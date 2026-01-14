@@ -210,10 +210,16 @@ class ApiClient {
     return this.request(`/sessions${params}`);
   }
 
-  // Health check
+  // Health check with real-time provider status
   async healthCheck(): Promise<{
     status: string;
     providers: Record<string, boolean>;
+    provider_health?: Record<string, {
+      status: string;
+      success_rate: number;
+      recent_calls: number;
+      last_error?: string;
+    }>;
   }> {
     const response = await fetch(`${this.baseUrl.replace('/api/v1', '')}/health`);
     return response.json();

@@ -14,6 +14,7 @@ from ..providers import AIProvider, AnthropicProvider, GoogleProvider, OpenAIPro
 from .config import get_settings
 from .evaluation import parse_evaluation
 from .credits import calculate_credits
+from .provider_health import health_tracker
 
 logger = logging.getLogger(__name__)
 
@@ -474,10 +475,19 @@ Do NOT rewrite the document. Produce a revision directive only."""
                                     "token": token,
                                 })
                             stream_success = True
+                            # Record successful API call for health tracking
+                            health_tracker.record_success(agent.provider)
 
                         except Exception as e:
                             error_str = str(e).lower()
                             is_overload = 'overload' in error_str or 'rate' in error_str or '529' in error_str or '429' in error_str
+
+                            # Record failed API call for health tracking
+                            health_tracker.record_failure(
+                                agent.provider,
+                                str(e),
+                                is_overload=is_overload
+                            )
 
                             if is_overload:
                                 # Build context-aware suggestion based on which provider failed

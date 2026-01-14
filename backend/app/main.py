@@ -14,6 +14,7 @@ from .api.billing import router as billing_router, webhook_router
 from .api.admin import router as admin_router
 from .core.config import get_settings
 from .core.security import SecurityHeadersMiddleware, RequestLoggingMiddleware, limiter
+from .core.provider_health import health_tracker
 from .db.database import init_db, close_db
 
 # Configure logging
@@ -96,16 +97,21 @@ async def root():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
+    """Health check endpoint with real-time provider status."""
     settings = get_settings()
 
-    providers_available = {
+    # Check which providers have API keys configured
+    providers_configured = {
         "anthropic": bool(settings.anthropic_api_key),
         "google": bool(settings.google_api_key),
         "openai": bool(settings.openai_api_key),
     }
 
+    # Get real-time health status from recent API calls
+    provider_health = health_tracker.get_all_health()
+
     return {
         "status": "healthy",
-        "providers": providers_available,
+        "providers": providers_configured,
+        "provider_health": provider_health,
     }
