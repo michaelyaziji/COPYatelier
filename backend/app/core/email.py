@@ -221,6 +221,68 @@ def add_formatted_text(paragraph, text: str):
             run.font.size = Pt(11)
 
 
+async def send_email(
+    to_email: str,
+    subject: str,
+    html_body: str,
+    text_body: Optional[str] = None,
+) -> bool:
+    """
+    Send a generic email via SMTP.
+
+    Args:
+        to_email: Recipient email address
+        subject: Email subject
+        html_body: HTML content of the email
+        text_body: Optional plain text version (auto-generated from HTML if not provided)
+
+    Returns:
+        True if email was sent successfully
+    """
+    settings = get_settings()
+
+    if not settings.smtp_username or not settings.smtp_password:
+        logger.warning("SMTP credentials not configured - email disabled")
+        raise ValueError("Email service is not configured.")
+
+    try:
+        # Create message container
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = subject
+        msg['From'] = settings.smtp_from_email
+        msg['To'] = to_email
+
+        # Plain text version - strip HTML if not provided
+        if not text_body:
+            import re
+            text_body = re.sub(r'<[^>]+>', '', html_body)
+            text_body = re.sub(r'\s+', ' ', text_body).strip()
+
+        part1 = MIMEText(text_body, 'plain')
+        part2 = MIMEText(html_body, 'html')
+        msg.attach(part1)
+        msg.attach(part2)
+
+        # Send email via SMTP
+        if settings.smtp_use_ssl:
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(settings.smtp_host, settings.smtp_port, context=context) as server:
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.sendmail(settings.smtp_from_email, to_email, msg.as_string())
+        else:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
+                server.starttls()
+                server.login(settings.smtp_username, settings.smtp_password)
+                server.sendmail(settings.smtp_from_email, to_email, msg.as_string())
+
+        logger.info(f"Email sent successfully to {to_email}")
+        return True
+
+    except Exception as e:
+        logger.error(f"Failed to send email to {to_email}: {e}")
+        raise
+
+
 async def send_document_email(
     to_email: str,
     document_content: str,

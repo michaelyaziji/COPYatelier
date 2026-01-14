@@ -13,7 +13,7 @@ MODEL_CREDIT_MULTIPLIERS = {
     "claude-opus-4-5-20251101": 5.0,
     "claude-sonnet-4-5-20250929": 1.0,
     "claude-sonnet-4-thinking-20250514": 1.5,
-    "claude-haiku-4-5-20250110": 0.25,
+    "claude-3-5-haiku-20241022": 0.25,
 
     # Google
     "gemini-2.5-pro": 1.2,

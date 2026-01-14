@@ -7,7 +7,7 @@ export type ModelType =
   | 'claude-opus-4-5-20251101'
   | 'claude-sonnet-4-5-20250929'
   | 'claude-sonnet-4-thinking-20250514'
-  | 'claude-haiku-4-5-20250110'
+  | 'claude-3-5-haiku-20241022'
   // Google
   | 'gemini-2.5-pro'
   | 'gemini-2.5-flash'

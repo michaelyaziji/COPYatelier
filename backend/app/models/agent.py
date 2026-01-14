@@ -19,7 +19,7 @@ class ModelType(str, Enum):
     CLAUDE_OPUS_4 = "claude-opus-4-5-20251101"
     CLAUDE_SONNET_4 = "claude-sonnet-4-5-20250929"
     CLAUDE_SONNET_4_THINKING = "claude-sonnet-4-thinking-20250514"
-    CLAUDE_HAIKU = "claude-haiku-4-5-20250110"
+    CLAUDE_HAIKU = "claude-3-5-haiku-20241022"
 
     # Google
     GEMINI_2_5_PRO = "gemini-2.5-pro"

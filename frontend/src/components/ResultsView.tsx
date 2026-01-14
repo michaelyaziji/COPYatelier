@@ -12,7 +12,7 @@ import { clsx } from 'clsx';
 import { useState, useEffect, useRef } from 'react';
 
 export function ResultsView() {
-  const { sessionState, isRunning, isStreaming, error, reset, stopSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
+  const { sessionState, isRunning, isStreaming, error, reset, stopSession, resetSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
   const { lastEstimate, refreshBalance } = useCreditsStore();
   const [copied, setCopied] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
@@ -196,7 +196,7 @@ export function ResultsView() {
           {/* Control Buttons */}
           <Card>
             <CardContent className="py-4">
-              <div className="flex items-center justify-center">
+              <div className="flex items-center justify-center gap-3">
                 <Button
                   onClick={stopSession}
                   variant="secondary"
@@ -205,9 +205,17 @@ export function ResultsView() {
                   <StopCircle className="h-4 w-4" />
                   Stop
                 </Button>
+                <Button
+                  onClick={resetSession}
+                  variant="ghost"
+                  className="text-zinc-500 hover:text-zinc-700"
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  Reset Session
+                </Button>
               </div>
               <p className="text-xs text-zinc-500 text-center mt-2">
-                Takes effect after current agent finishes
+                Stop takes effect after current agent finishes. Reset forces a restart.
               </p>
             </CardContent>
           </Card>
@@ -228,14 +236,27 @@ export function ResultsView() {
           <p className="text-zinc-500 mb-6 max-w-md mx-auto">
             This may take a minute or two depending on the number of agents and rounds.
           </p>
-          <Button
-            onClick={stopSession}
-            variant="secondary"
-            className="bg-rose-100 hover:bg-rose-200 text-rose-700"
-          >
-            <StopCircle className="h-4 w-4" />
-            Stop and Get Results
-          </Button>
+          <div className="flex items-center justify-center gap-3">
+            <Button
+              onClick={stopSession}
+              variant="secondary"
+              className="bg-rose-100 hover:bg-rose-200 text-rose-700"
+            >
+              <StopCircle className="h-4 w-4" />
+              Stop and Get Results
+            </Button>
+            <Button
+              onClick={resetSession}
+              variant="ghost"
+              className="text-zinc-500 hover:text-zinc-700"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Session
+            </Button>
+          </div>
+          <p className="text-xs text-zinc-400 mt-3">
+            Stuck? Use Reset Session to start over.
+          </p>
         </CardContent>
       </Card>
     );

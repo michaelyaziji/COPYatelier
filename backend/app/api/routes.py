@@ -295,11 +295,18 @@ async def start_session(
     repo = SessionRepository(db)
     await repo.update_status(session_id, "running")
 
+    # Monitoring: mark session as started
+    from ..core.monitoring import mark_session_started, mark_session_ended, record_session_failure
+    mark_session_started(session_id, user.id)
+
     # Create orchestrator and run
     orchestrator = Orchestrator(state)
 
     try:
         await orchestrator.run()
+
+        # Monitoring: mark session as ended
+        mark_session_ended(session_id)
 
         # Persist final state to database
         await repo.update_status(
@@ -332,6 +339,10 @@ async def start_session(
 
     except Exception as e:
         state.is_running = False
+        # Monitoring: record session failure and mark ended
+        mark_session_ended(session_id)
+        await record_session_failure(session_id, user.id, str(e))
+
         await repo.update_status(session_id, "failed", termination_reason=str(e))
         raise HTTPException(status_code=500, detail=f"Orchestration failed: {str(e)}")
 
@@ -375,10 +386,17 @@ async def start_session_stream(
     # Create streaming orchestrator with user context for credit tracking
     orchestrator = StreamingOrchestrator(state, user_id=user.id, initial_balance=initial_balance)
 
+    # Monitoring: mark session as started
+    from ..core.monitoring import mark_session_started, mark_session_ended, record_session_failure, record_credit_usage
+    mark_session_started(session_id, user.id)
+
     async def event_generator():
         try:
             async for event in orchestrator.run_streaming():
                 yield event
+
+            # Monitoring: mark session as ended
+            mark_session_ended(session_id)
 
             # After streaming completes, persist to database
             # Note: We need a new db session here since the original one
@@ -435,11 +453,18 @@ async def start_session_stream(
                     # Update session's total credits used
                     await credit_repo.update_session_credits(session_id, total_credits)
 
+                    # Monitoring: track credit usage for anomaly detection
+                    await record_credit_usage(user.id, user.email, total_credits, session_id)
+
                     logger.info(f"Deducted {total_credits} credits for session {session_id}")
 
         except Exception as e:
             logger.error(f"Streaming error: {e}")
             yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
+            # Monitoring: record session failure and mark ended
+            mark_session_ended(session_id)
+            await record_session_failure(session_id, user.id, str(e))
 
             # Update status on error
             from ..db.database import async_session
@@ -469,6 +494,8 @@ async def stop_session(
 
     This will cancel the orchestration after the current agent turn completes.
     Any completed turns will be preserved in the session history.
+    Also updates the database status to ensure the session is marked as stopped
+    even if the backend process has crashed.
     Requires authentication. User must own the session.
 
     Args:
@@ -478,23 +505,66 @@ async def stop_session(
         Status message with partial results info
     """
     state = await get_session_state(session_id, db, user)
+    repo = SessionRepository(db)
 
-    if not state.is_running:
-        return {
-            "session_id": session_id,
-            "status": "not_running",
-            "message": "Session is not currently running",
-            "turns_completed": len(state.exchange_history),
-        }
+    # Always update database status to "stopped" - this ensures the session
+    # is marked as stopped even if the backend process has crashed
+    await repo.update_status(session_id, "stopped", termination_reason="Stopped by user")
 
-    # Set the cancellation flag - orchestrator will check this
-    state.is_cancelled = True
+    # Also set the cancellation flag on in-memory state if it exists and is running
+    if state.is_running:
+        state.is_cancelled = True
+
+    # Remove from active sessions cache so next load gets fresh state from DB
+    if session_id in active_sessions:
+        del active_sessions[session_id]
 
     return {
         "session_id": session_id,
-        "status": "stopping",
-        "message": "Stop signal sent. Session will stop after current agent turn completes.",
+        "status": "stopped",
+        "message": "Session stopped. Any completed work has been saved.",
         "turns_completed": len(state.exchange_history),
+    }
+
+
+@router.post("/sessions/{session_id}/reset")
+async def reset_session(
+    session_id: str,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Reset a stuck session back to draft state.
+
+    This allows users to recover from stuck sessions (e.g., when the backend
+    process crashed but the database still shows "running"). Resets the session
+    status to "draft" so users can try again.
+    Requires authentication. User must own the session.
+
+    Args:
+        session_id: Session identifier
+
+    Returns:
+        Status message
+    """
+    # Verify ownership
+    repo = SessionRepository(db)
+    db_session = await repo.get_for_user(session_id, user.id)
+
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    # Remove from active sessions cache
+    if session_id in active_sessions:
+        del active_sessions[session_id]
+
+    # Reset status to draft
+    await repo.update_status(session_id, "draft", termination_reason=None)
+
+    return {
+        "session_id": session_id,
+        "status": "reset",
+        "message": "Session reset to draft. You can now start it again.",
     }
 
 
@@ -1470,3 +1540,90 @@ async def estimate_session_credits(
         "has_sufficient_credits": balance.balance >= estimated,
         "agents": agent_breakdown,
     }
+
+
+# ============ Feedback endpoint ============
+
+class FeedbackRequest(BaseModel):
+    """Request body for feedback submission."""
+    category: str  # bug, feature, question, other, contact
+    message: str
+    email: Optional[str] = None
+
+
+@router.post("/feedback")
+@limiter.limit("10/minute")
+async def submit_feedback(
+    request: Request,
+    body: FeedbackRequest,
+    user: Optional[UserModel] = Depends(get_optional_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Submit user feedback via email.
+
+    This endpoint accepts feedback from both authenticated and anonymous users.
+    Feedback is sent directly to the admin email.
+
+    Args:
+        body: Feedback request with category, message, and optional email
+
+    Returns:
+        Status message
+    """
+    from ..core.email import send_email
+
+    # Build email content
+    user_info = ""
+    if user:
+        user_info = f"User: {user.email} (ID: {user.id})"
+    elif body.email:
+        user_info = f"Anonymous user provided email: {body.email}"
+    else:
+        user_info = "Anonymous user (no email provided)"
+
+    category_labels = {
+        "bug": "Bug Report",
+        "feature": "Feature Request",
+        "question": "Question",
+        "contact": "Contact Form",
+        "other": "General Feedback",
+    }
+    category_label = category_labels.get(body.category, body.category.title())
+
+    subject = f"[Atelier Feedback] {category_label}"
+
+    html_body = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px;">
+        <div style="background: linear-gradient(135deg, #8b5cf6, #7c3aed); color: white; padding: 20px; border-radius: 12px 12px 0 0;">
+            <h2 style="margin: 0;">{category_label}</h2>
+        </div>
+        <div style="background: #f9fafb; padding: 20px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            <p style="color: #6b7280; font-size: 14px; margin-bottom: 16px;">
+                {user_info}
+            </p>
+            <div style="background: white; padding: 16px; border-radius: 8px; border: 1px solid #e5e7eb;">
+                <p style="white-space: pre-wrap; margin: 0; color: #374151; line-height: 1.6;">
+{body.message}
+                </p>
+            </div>
+        </div>
+        <p style="color: #9ca3af; font-size: 12px; margin-top: 16px;">
+            Sent from Atelier feedback system
+        </p>
+    </body>
+    </html>
+    """
+
+    try:
+        await send_email(
+            to_email="info@atelierwritereditor.com",
+            subject=subject,
+            html_body=html_body,
+        )
+        logger.info(f"Feedback submitted: {body.category} from {user_info}")
+        return {"status": "sent", "message": "Thank you for your feedback!"}
+    except Exception as e:
+        logger.error(f"Failed to send feedback email: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send feedback. Please try again later.")

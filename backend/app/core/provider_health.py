@@ -167,7 +167,7 @@ class HealthCheckService:
     Background service that proactively pings AI providers to check their health.
 
     Uses the cheapest model from each provider to minimize costs:
-    - Anthropic: claude-haiku-4-5-20250110
+    - Anthropic: claude-3-5-haiku-20241022
     - OpenAI: gpt-4o-mini
     - Google: gemini-2.0-flash
     """
@@ -177,7 +177,7 @@ class HealthCheckService:
 
     # Cheapest models for health checks
     HEALTH_CHECK_MODELS = {
-        ProviderType.ANTHROPIC: "claude-haiku-4-5-20250110",
+        ProviderType.ANTHROPIC: "claude-3-5-haiku-20241022",
         ProviderType.OPENAI: "gpt-4o-mini",
         ProviderType.GOOGLE: "gemini-2.0-flash",
         ProviderType.PERPLEXITY: "sonar",
@@ -256,6 +256,8 @@ class HealthCheckService:
 
     async def _ping_provider(self, provider_type: ProviderType, provider) -> None:
         """Ping a single provider and record the result."""
+        from .monitoring import record_model_error, record_model_success
+
         model = self.HEALTH_CHECK_MODELS[provider_type]
 
         try:
@@ -269,6 +271,7 @@ class HealthCheckService:
 
             # Success - record it
             health_tracker.record_success(provider_type)
+            await record_model_success(provider_type.value, model)
             logger.debug("Health check OK: %s", provider_type.value)
 
         except Exception as e:
@@ -277,6 +280,12 @@ class HealthCheckService:
 
             health_tracker.record_failure(provider_type, str(e), is_overload=is_overload)
             logger.warning("Health check FAILED for %s: %s", provider_type.value, e)
+
+            # Send monitoring alert for model errors
+            error_code = None
+            if '404' in str(e):
+                error_code = 404
+            await record_model_error(provider_type.value, model, str(e), error_code)
 
 
 # Global service instance

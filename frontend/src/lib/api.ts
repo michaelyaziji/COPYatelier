@@ -117,6 +117,16 @@ class ApiClient {
     });
   }
 
+  async resetSession(sessionId: string): Promise<{
+    session_id: string;
+    status: string;
+    message: string;
+  }> {
+    return this.request(`/sessions/${sessionId}/reset`, {
+      method: 'POST',
+    });
+  }
+
   async pauseSession(sessionId: string): Promise<{
     session_id: string;
     status: string;
@@ -539,6 +549,18 @@ class ApiClient {
 
     const query = searchParams.toString() ? `?${searchParams.toString()}` : '';
     return this.request(`/admin/transactions${query}`);
+  }
+
+  // Feedback
+  async submitFeedback(params: {
+    category: string;
+    message: string;
+    email?: string;
+  }): Promise<{ status: string; message: string }> {
+    return this.request('/feedback', {
+      method: 'POST',
+      body: JSON.stringify(params),
+    });
   }
 }
 

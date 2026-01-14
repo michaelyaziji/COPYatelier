@@ -15,6 +15,7 @@ from .api.admin import router as admin_router
 from .core.config import get_settings
 from .core.security import SecurityHeadersMiddleware, RequestLoggingMiddleware, limiter
 from .core.provider_health import health_tracker, health_check_service
+from .core.monitoring import start_monitoring_task
 from .db.database import init_db, close_db
 
 # Configure logging
@@ -46,6 +47,9 @@ async def lifespan(app: FastAPI):
 
     # Start proactive health checks for AI providers
     await health_check_service.start(settings)
+
+    # Start monitoring background task (checks for stuck sessions periodically)
+    start_monitoring_task()
 
     yield
 

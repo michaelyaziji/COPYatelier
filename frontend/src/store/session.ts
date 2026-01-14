@@ -97,6 +97,7 @@ interface SessionStore {
   createAndStartStreamingSession: () => Promise<void>;
   handleStreamEvent: (event: StreamEvent) => void;
   stopSession: () => Promise<void>;
+  resetSession: () => Promise<void>;
   pauseSession: () => Promise<void>;
   resumeSession: () => Promise<void>;
   pollSessionStatus: () => Promise<void>;
@@ -591,11 +592,40 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!sessionId) return;
 
     try {
-      await api.stopSession(sessionId);
-      // The session will stop after the current turn completes
-      // We'll poll for the final state
+      const result = await api.stopSession(sessionId);
+      // Update frontend state to reflect stopped status
+      set({
+        isRunning: false,
+        isStreaming: false,
+      });
+      // Reload session to get final state from database
+      if (result.status === 'stopped') {
+        await get().loadSession(sessionId);
+      }
     } catch (err) {
       console.error('Failed to stop session:', err);
+      // Even on error, try to reset the running state
+      set({ isRunning: false, isStreaming: false });
+    }
+  },
+
+  resetSession: async () => {
+    const { sessionId } = get();
+    if (!sessionId) return;
+
+    try {
+      await api.resetSession(sessionId);
+      // Reset frontend state completely
+      set({
+        isRunning: false,
+        isStreaming: false,
+        sessionState: null,
+        error: null,
+      });
+    } catch (err) {
+      console.error('Failed to reset session:', err);
+      // Even on error, try to reset the running state
+      set({ isRunning: false, isStreaming: false });
     }
   },
 

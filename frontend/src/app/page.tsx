@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Sparkles, AlertTriangle, ChevronRight, Settings, PanelLeftClose, PanelLeft, Shield } from 'lucide-react';
+import { Sparkles, AlertTriangle, ChevronRight, Settings, PanelLeftClose, PanelLeft, Shield, HelpCircle, MessageSquare, CreditCard as CreditCardIcon } from 'lucide-react';
 import { UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { WorkflowPanel } from '@/components/WorkflowPanel';
@@ -11,6 +11,7 @@ import { ResultsView } from '@/components/ResultsView';
 import { SessionsSidebar } from '@/components/SessionsSidebar';
 import { CreditDisplay } from '@/components/CreditDisplay';
 import { LandingPage } from '@/components/LandingPage';
+import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { useSessionStore } from '@/store/session';
 import { useCreditsStore } from '@/store/credits';
 import { api } from '@/lib/api';
@@ -255,26 +256,10 @@ export default function Home() {
                   })}
                 </div>
 
-                {/* Auth + Settings + Credits */}
+                {/* Auth + Credits */}
                 <div className="flex items-center gap-3">
                   {/* Credit Balance Display with estimate on setup steps */}
                   <CreditDisplay showEstimate={currentStep === 1 || currentStep === 2} />
-                  <Link
-                    href="/settings"
-                    className="p-2 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100 transition-colors"
-                    title="Settings"
-                  >
-                    <Settings className="h-5 w-5" />
-                  </Link>
-                  {isAdmin && (
-                    <Link
-                      href="/admin"
-                      className="p-2 rounded-lg text-violet-500 hover:text-violet-700 hover:bg-violet-50 transition-colors"
-                      title="Admin Dashboard"
-                    >
-                      <Shield className="h-5 w-5" />
-                    </Link>
-                  )}
                   <UserButton
                     afterSignOutUrl="/"
                     appearance={{
@@ -282,7 +267,37 @@ export default function Home() {
                         avatarBox: "w-9 h-9",
                       },
                     }}
-                  />
+                  >
+                    <UserButton.MenuItems>
+                      <UserButton.Link
+                        label="Settings"
+                        labelIcon={<Settings className="h-4 w-4" />}
+                        href="/settings"
+                      />
+                      <UserButton.Link
+                        label="Billing"
+                        labelIcon={<CreditCardIcon className="h-4 w-4" />}
+                        href="/billing"
+                      />
+                      <UserButton.Link
+                        label="Help & FAQ"
+                        labelIcon={<HelpCircle className="h-4 w-4" />}
+                        href="/faq"
+                      />
+                      <UserButton.Link
+                        label="Contact Us"
+                        labelIcon={<MessageSquare className="h-4 w-4" />}
+                        href="/contact"
+                      />
+                      {isAdmin && (
+                        <UserButton.Link
+                          label="Admin Dashboard"
+                          labelIcon={<Shield className="h-4 w-4" />}
+                          href="/admin"
+                        />
+                      )}
+                    </UserButton.MenuItems>
+                  </UserButton>
                 </div>
               </div>
             </div>
@@ -394,6 +409,9 @@ export default function Home() {
             </main>
           </div>
         </div>
+
+        {/* Feedback Widget */}
+        <FeedbackWidget />
       </SignedIn>
     </>
   );
