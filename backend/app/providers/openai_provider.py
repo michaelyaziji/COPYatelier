@@ -1,16 +1,36 @@
 """OpenAI provider implementation."""
 
+import asyncio
+import logging
 from typing import AsyncIterator, Callable, Optional
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APIStatusError
 
 from .base import AIProvider, ProviderResponse, StreamingResult
 
+logger = logging.getLogger(__name__)
+
+# Retry configuration
+MAX_RETRIES = 3
+BASE_DELAY = 2  # seconds
+MAX_DELAY = 10  # seconds
+
 
 class OpenAIProvider(AIProvider):
-    """OpenAI API provider."""
+    """OpenAI API provider with automatic retry on overload."""
 
     def __init__(self, api_key: str):
         self.client = AsyncOpenAI(api_key=api_key)
+
+    def _is_retryable_error(self, error: Exception) -> bool:
+        """Check if an error is retryable (overload, rate limit, etc.)."""
+        if isinstance(error, APIStatusError):
+            # Retry on 429 (rate limit), 503 (service unavailable), 500 (server error)
+            if error.status_code in (429, 500, 503):
+                return True
+        error_str = str(error).lower()
+        if 'rate_limit' in error_str or 'overloaded' in error_str or 'server_error' in error_str:
+            return True
+        return False
 
     async def generate(
         self,
@@ -60,7 +80,7 @@ class OpenAIProvider(AIProvider):
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
     ) -> AsyncIterator[str]:
-        """Stream response from OpenAI models."""
+        """Stream response from OpenAI models with automatic retry on overload."""
 
         kwargs = {
             "model": model,
@@ -75,11 +95,36 @@ class OpenAIProvider(AIProvider):
         if max_tokens:
             kwargs["max_tokens"] = max_tokens
 
-        stream = await self.client.chat.completions.create(**kwargs)
+        last_error = None
 
-        async for chunk in stream:
-            if chunk.choices[0].delta.content:
-                yield chunk.choices[0].delta.content
+        for attempt in range(MAX_RETRIES):
+            try:
+                stream = await self.client.chat.completions.create(**kwargs)
+
+                async for chunk in stream:
+                    if chunk.choices[0].delta.content:
+                        yield chunk.choices[0].delta.content
+                # Success
+                return
+            except Exception as e:
+                last_error = e
+
+                if not self._is_retryable_error(e):
+                    raise
+
+                if attempt < MAX_RETRIES - 1:
+                    delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY)
+                    logger.warning(
+                        f"OpenAI stream ({model}): Retryable error (attempt {attempt + 1}/{MAX_RETRIES}), "
+                        f"retrying in {delay}s: {e}"
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.error(
+                        f"OpenAI stream ({model}): All {MAX_RETRIES} retry attempts failed"
+                    )
+
+        raise last_error
 
     async def generate_stream_with_usage(
         self,
