@@ -5,6 +5,9 @@ import logging
 from typing import AsyncIterator, Callable, Optional
 from anthropic import AsyncAnthropic, APIStatusError
 
+# Type alias for retry callback
+RetryCallback = Optional[Callable[[int, int, str], None]]
+
 from .base import AIProvider, ProviderResponse, StreamingResult
 
 logger = logging.getLogger(__name__)
@@ -110,6 +113,7 @@ class AnthropicProvider(AIProvider):
         model: str,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        on_retry: Optional[Callable[[int, int, str], None]] = None,
     ) -> AsyncIterator[str]:
         """Stream response from Claude with automatic retry on overload."""
 
@@ -141,6 +145,14 @@ class AnthropicProvider(AIProvider):
 
                 if attempt < MAX_RETRIES - 1:
                     delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY)
+                    reason = "Service temporarily overloaded"
+                    if "rate" in str(e).lower():
+                        reason = "Rate limit reached"
+
+                    # Notify caller about retry
+                    if on_retry:
+                        on_retry(attempt + 1, MAX_RETRIES, reason)
+
                     logger.warning(
                         f"Claude stream ({model}): Retryable error (attempt {attempt + 1}/{MAX_RETRIES}), "
                         f"retrying in {delay}s: {e}"

@@ -56,12 +56,14 @@ class AIProvider(ABC):
         model: str,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        on_retry: Optional[Callable[[int, int, str], None]] = None,
     ) -> AsyncIterator[str]:
         """
         Stream response tokens from the AI model.
 
         Args:
             Same as generate()
+            on_retry: Optional callback(attempt, max_attempts, reason) called before each retry
 
         Yields:
             Content chunks as they are generated

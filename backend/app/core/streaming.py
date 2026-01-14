@@ -24,6 +24,7 @@ class StreamEventType(str, Enum):
     ROUND_START = "round_start"
     AGENT_START = "agent_start"
     AGENT_TOKEN = "agent_token"
+    AGENT_RETRY = "agent_retry"
     AGENT_COMPLETE = "agent_complete"
     ROUND_COMPLETE = "round_complete"
     SESSION_COMPLETE = "session_complete"
@@ -454,9 +455,10 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         system_prompt = self._build_system_prompt(agent)
                         user_prompt = self._build_agent_prompt(agent, is_first_turn)
 
-                        # Stream the response
+                        # Stream the response with retry handling at orchestrator level
                         full_response = ""
                         model_name = agent.model.value if hasattr(agent.model, 'value') else agent.model
+                        stream_success = False
 
                         try:
                             async for token in provider.generate_stream(
@@ -471,13 +473,29 @@ Do NOT rewrite the document. Produce a revision directive only."""
                                     "agent_id": agent.agent_id,
                                     "token": token,
                                 })
+                            stream_success = True
 
                         except Exception as e:
-                            logger.error(f"Error streaming from {agent.display_name}: {e}")
-                            yield self._create_event(StreamEventType.ERROR, {
-                                "agent_id": agent.agent_id,
-                                "message": str(e),
-                            })
+                            error_str = str(e).lower()
+                            is_overload = 'overload' in error_str or 'rate' in error_str or '529' in error_str or '429' in error_str
+
+                            if is_overload:
+                                # Send user-friendly error for overload
+                                logger.error(f"Error streaming from {agent.display_name} (overloaded after retries): {e}")
+                                yield self._create_event(StreamEventType.ERROR, {
+                                    "agent_id": agent.agent_id,
+                                    "message": f"The AI service is currently overloaded. Please wait a moment and try again, or switch to a different model (e.g., GPT-4o or Gemini).",
+                                    "error_type": "overload",
+                                })
+                            else:
+                                logger.error(f"Error streaming from {agent.display_name}: {e}")
+                                yield self._create_event(StreamEventType.ERROR, {
+                                    "agent_id": agent.agent_id,
+                                    "message": str(e),
+                                })
+                            continue
+
+                        if not stream_success:
                             continue
 
                         # Parse evaluation

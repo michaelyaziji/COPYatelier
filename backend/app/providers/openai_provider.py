@@ -79,6 +79,7 @@ class OpenAIProvider(AIProvider):
         model: str,
         temperature: float = 0.7,
         max_tokens: Optional[int] = None,
+        on_retry: Optional[Callable[[int, int, str], None]] = None,
     ) -> AsyncIterator[str]:
         """Stream response from OpenAI models with automatic retry on overload."""
 
@@ -114,6 +115,14 @@ class OpenAIProvider(AIProvider):
 
                 if attempt < MAX_RETRIES - 1:
                     delay = min(BASE_DELAY * (2 ** attempt), MAX_DELAY)
+                    reason = "Service temporarily overloaded"
+                    if "rate" in str(e).lower():
+                        reason = "Rate limit reached"
+
+                    # Notify caller about retry
+                    if on_retry:
+                        on_retry(attempt + 1, MAX_RETRIES, reason)
+
                     logger.warning(
                         f"OpenAI stream ({model}): Retryable error (attempt {attempt + 1}/{MAX_RETRIES}), "
                         f"retrying in {delay}s: {e}"

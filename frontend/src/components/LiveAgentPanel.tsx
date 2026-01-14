@@ -135,6 +135,7 @@ export function LiveAgentPanel() {
           const color = agentColors[index % agentColors.length];
           const isActive = agent.status === 'generating';
           const isDone = agent.status === 'complete';
+          const isError = agent.status === 'error';
 
           return (
             <Card
@@ -142,33 +143,37 @@ export function LiveAgentPanel() {
               className={clsx(
                 'overflow-hidden transition-all duration-300',
                 isActive && `ring-2 ${color.ring} ring-offset-2`,
-                isDone && 'border-emerald-200'
+                isDone && 'border-emerald-200',
+                isError && 'border-red-300 ring-2 ring-red-200'
               )}
             >
               {/* Agent Header */}
               <div className={clsx(
                 'px-4 py-3 border-b flex items-center justify-between',
-                isDone ? 'bg-emerald-50' : 'bg-zinc-50'
+                isDone ? 'bg-emerald-50' : isError ? 'bg-red-50' : 'bg-zinc-50'
               )}>
                 <div className="flex items-center gap-3">
                   <div className={clsx(
                     'w-8 h-8 rounded-lg flex items-center justify-center',
-                    isDone ? 'bg-emerald-100' : color.bg
+                    isDone ? 'bg-emerald-100' : isError ? 'bg-red-100' : color.bg
                   )}>
                     {isActive ? (
                       <Loader2 className={clsx('w-4 h-4 animate-spin', color.text)} />
                     ) : isDone ? (
                       <span className="text-xs font-bold text-emerald-600">✓</span>
+                    ) : isError ? (
+                      <span className="text-xs font-bold text-red-600">!</span>
                     ) : (
                       <Bot className={clsx('w-4 h-4', color.text)} />
                     )}
                   </div>
                   <div>
                     <p className="font-semibold text-sm text-zinc-900">{agent.agent_name}</p>
-                    <p className="text-xs text-zinc-500">
+                    <p className={clsx('text-xs', isError ? 'text-red-600' : agent.errorMessage ? 'text-amber-600' : 'text-zinc-500')}>
                       {agent.status === 'idle' && 'Waiting...'}
-                      {agent.status === 'generating' && 'Writing...'}
+                      {agent.status === 'generating' && (agent.errorMessage || 'Writing...')}
                       {agent.status === 'complete' && 'Done'}
+                      {agent.status === 'error' && 'Error'}
                     </p>
                   </div>
                 </div>
@@ -202,6 +207,16 @@ export function LiveAgentPanel() {
                   <div className="h-full flex flex-col items-center justify-center text-zinc-400">
                     <Bot className="w-8 h-8 mb-2 opacity-30" />
                     <span className="text-sm">Waiting for turn...</span>
+                  </div>
+                ) : agent.status === 'error' ? (
+                  <div className="h-full flex flex-col items-center justify-center text-red-500 p-4">
+                    <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-3">
+                      <span className="text-2xl">!</span>
+                    </div>
+                    <p className="text-sm text-center font-medium mb-2">Generation Failed</p>
+                    <p className="text-xs text-center text-red-400 max-w-xs">
+                      {agent.errorMessage || 'The AI service encountered an error. Please try again or switch to a different model.'}
+                    </p>
                   </div>
                 ) : (
                   <div className="prose prose-sm max-w-none">

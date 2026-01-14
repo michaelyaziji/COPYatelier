@@ -124,6 +124,7 @@ export type StreamEventType =
   | 'round_start'
   | 'agent_start'
   | 'agent_token'
+  | 'agent_retry'
   | 'agent_complete'
   | 'round_complete'
   | 'session_complete'
@@ -137,14 +138,16 @@ export interface StreamEvent {
   type: StreamEventType;
   session_id?: string;
   timestamp: string;
+  error_type?: string;
   [key: string]: unknown;
 }
 
 export interface AgentStreamState {
   agent_id: string;
   agent_name: string;
-  status: 'idle' | 'generating' | 'complete';
+  status: 'idle' | 'generating' | 'complete' | 'error';
   content: string;
+  errorMessage?: string;
   evaluation?: {
     overall_score: number | null;
     criteria_scores: { criterion: string; score: number }[];

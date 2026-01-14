@@ -486,6 +486,26 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         break;
       }
 
+      case 'agent_retry': {
+        const agentId = event.agent_id as string;
+        const attempt = event.attempt as number;
+        const maxRetries = event.max_retries as number;
+        const reason = event.reason as string;
+        if (agentStreams[agentId]) {
+          set({
+            agentStreams: {
+              ...agentStreams,
+              [agentId]: {
+                ...agentStreams[agentId],
+                status: 'generating',
+                errorMessage: `Retrying (${attempt}/${maxRetries})... ${reason}`,
+              },
+            },
+          });
+        }
+        break;
+      }
+
       case 'agent_complete': {
         const agentId = event.agent_id as string;
         if (agentStreams[agentId]) {
@@ -537,22 +557,30 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
       case 'error': {
         console.error('Stream error:', event.message);
-        // If error is associated with an agent, mark that agent as errored
         const errorAgentId = event.agent_id as string | undefined;
+        const errorMessage = event.message as string;
+        const errorType = event.error_type as string | undefined;
+
+        // If error is associated with an agent, mark that agent as errored
         if (errorAgentId && agentStreams[errorAgentId]) {
           set({
             agentStreams: {
               ...agentStreams,
               [errorAgentId]: {
                 ...agentStreams[errorAgentId],
-                status: 'complete',
-                content: `Error: ${event.message}`,
+                status: 'error',
+                errorMessage: errorMessage,
               },
             },
           });
         }
-        // Also set global error for visibility
-        set({ error: `Agent error: ${event.message}` });
+
+        // Set user-friendly global error
+        if (errorType === 'overload') {
+          set({ error: errorMessage });
+        } else {
+          set({ error: `Error: ${errorMessage}` });
+        }
         break;
       }
     }
