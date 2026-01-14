@@ -103,6 +103,36 @@ export default function UserDetailPage() {
     });
   };
 
+  // Helper to display user identity in a readable way
+  const getUserDisplayInfo = (user: AdminUserDetails) => {
+    // Check if email is a Clerk-generated fallback (e.g., user_xxx@clerk.user)
+    const isClerkFallback = user.email.includes('@clerk.user');
+
+    // If we have a display name, use it with email below
+    if (user.display_name) {
+      return {
+        primary: user.display_name,
+        secondary: isClerkFallback ? 'No email on file' : user.email,
+      };
+    }
+
+    // No display name - show email as primary identifier
+    if (isClerkFallback) {
+      // Clerk fallback - no real email available
+      const shortId = user.id.length > 12 ? `${user.id.slice(0, 8)}...` : user.id;
+      return {
+        primary: `User ${shortId}`,
+        secondary: 'No email on file',
+      };
+    }
+
+    // Real email without display name - show full email as primary
+    return {
+      primary: user.email,
+      secondary: null,
+    };
+  };
+
   const getTierBadge = (tier: string) => {
     const styles: Record<string, string> = {
       free: 'bg-zinc-100 text-zinc-600',
@@ -172,16 +202,25 @@ export default function UserDetailPage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-zinc-900">{user.display_name || 'No name'}</h1>
-            {user.is_admin && (
-              <span className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-600 rounded-full text-xs font-medium">
-                <Shield className="h-3 w-3" />
-                Admin
-              </span>
-            )}
-          </div>
-          <p className="text-zinc-500 mt-1">{user.email}</p>
+          {(() => {
+            const displayInfo = getUserDisplayInfo(user);
+            return (
+              <>
+                <div className="flex items-center gap-3">
+                  <h1 className="text-2xl font-bold text-zinc-900">{displayInfo.primary}</h1>
+                  {user.is_admin && (
+                    <span className="flex items-center gap-1 px-2 py-1 bg-violet-100 text-violet-600 rounded-full text-xs font-medium">
+                      <Shield className="h-3 w-3" />
+                      Admin
+                    </span>
+                  )}
+                </div>
+                {displayInfo.secondary && (
+                  <p className="text-zinc-500 mt-1">{displayInfo.secondary}</p>
+                )}
+              </>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setShowGrantModal(true)}>
@@ -360,7 +399,7 @@ export default function UserDetailPage() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-zinc-900 mb-2">Grant Credits</h2>
             <p className="text-zinc-500 mb-6">
-              Grant credits to <span className="font-medium text-zinc-700">{user.email}</span>
+              Grant credits to <span className="font-medium text-zinc-700">{getUserDisplayInfo(user).primary}</span>
             </p>
 
             <div className="space-y-4">

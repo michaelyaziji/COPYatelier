@@ -56,7 +56,8 @@ export default function AdminAnalyticsPage() {
   };
 
   const formatPercent = (value: number) => {
-    return `${(value * 100).toFixed(1)}%`;
+    // Backend already returns percentage (e.g., 92.3), no need to multiply
+    return `${value.toFixed(1)}%`;
   };
 
   if (isLoading) {

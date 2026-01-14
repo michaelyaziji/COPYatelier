@@ -123,6 +123,36 @@ export default function AdminUsersPage() {
 
   const totalPages = Math.ceil(total / limit);
 
+  // Helper to display user identity in a readable way
+  const getUserDisplayInfo = (user: AdminUser) => {
+    // Check if email is a Clerk-generated fallback (e.g., user_xxx@clerk.user)
+    const isClerkFallback = user.email.includes('@clerk.user');
+
+    // If we have a display name, use it with email below
+    if (user.display_name) {
+      return {
+        primary: user.display_name,
+        secondary: isClerkFallback ? 'No email on file' : user.email,
+      };
+    }
+
+    // No display name - show email as primary identifier
+    if (isClerkFallback) {
+      // Clerk fallback - no real email available
+      const shortId = user.id.length > 12 ? `${user.id.slice(0, 8)}...` : user.id;
+      return {
+        primary: `User ${shortId}`,
+        secondary: 'No email on file',
+      };
+    }
+
+    // Real email without display name - show full email as primary
+    return {
+      primary: user.email,
+      secondary: null,
+    };
+  };
+
   const getTierBadge = (tier: string) => {
     const styles: Record<string, string> = {
       free: 'bg-zinc-100 text-zinc-600',
@@ -222,19 +252,26 @@ export default function AdminUsersPage() {
                   {users.map((user) => (
                     <tr key={user.id} className="hover:bg-zinc-50">
                       <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center">
-                            {user.is_admin ? (
-                              <Shield className="h-5 w-5 text-violet-600" />
-                            ) : (
-                              <Users className="h-5 w-5 text-zinc-400" />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-medium text-zinc-900">{user.display_name || 'No name'}</p>
-                            <p className="text-sm text-zinc-500">{user.email}</p>
-                          </div>
-                        </div>
+                        {(() => {
+                          const displayInfo = getUserDisplayInfo(user);
+                          return (
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center">
+                                {user.is_admin ? (
+                                  <Shield className="h-5 w-5 text-violet-600" />
+                                ) : (
+                                  <Users className="h-5 w-5 text-zinc-400" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-medium text-zinc-900">{displayInfo.primary}</p>
+                                {displayInfo.secondary && (
+                                  <p className="text-sm text-zinc-500">{displayInfo.secondary}</p>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </td>
                       <td className="px-6 py-4">
                         {getTierBadge(user.tier)}
@@ -334,7 +371,7 @@ export default function AdminUsersPage() {
           <div className="bg-white rounded-2xl p-6 w-full max-w-md mx-4">
             <h2 className="text-xl font-bold text-zinc-900 mb-2">Grant Credits</h2>
             <p className="text-zinc-500 mb-6">
-              Grant credits to <span className="font-medium text-zinc-700">{selectedUser.email}</span>
+              Grant credits to <span className="font-medium text-zinc-700">{getUserDisplayInfo(selectedUser).primary}</span>
             </p>
 
             <div className="space-y-4">
