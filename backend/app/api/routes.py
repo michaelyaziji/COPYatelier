@@ -405,58 +405,64 @@ async def start_session_stream(
             async with async_session() as db_session:
                 repo = SessionRepository(db_session)
 
-                # Determine final status
-                final_status = "completed"
-                if state.is_cancelled:
-                    final_status = "failed"
+                # Check if session was already stopped by user - if so, skip persistence
+                # since stop_session already persisted the data
+                db_session_record = await repo.get(session_id)
+                if db_session_record and db_session_record.status == "stopped":
+                    logger.info(f"Session {session_id} was stopped by user, skipping stream cleanup persistence")
+                else:
+                    # Determine final status
+                    final_status = "completed"
+                    if state.is_cancelled:
+                        final_status = "failed"
 
-                await repo.update_status(
-                    session_id,
-                    final_status,
-                    termination_reason=state.termination_reason,
-                )
-
-                # Save exchange turns with token and credit info
-                for turn in state.exchange_history:
-                    agent_config = next(
-                        (a for a in state.config.agents if a.agent_id == turn.agent_id),
-                        None
-                    )
-                    phase = getattr(agent_config, 'phase', 2) if agent_config else 2
-                    await repo.add_exchange_turn(
+                    await repo.update_status(
                         session_id,
-                        turn,
-                        phase=phase,
-                        tokens_input=turn.tokens_input,
-                        tokens_output=turn.tokens_output,
+                        final_status,
+                        termination_reason=state.termination_reason,
                     )
 
-                # Update working document
-                if state.exchange_history:
-                    final_doc = state.exchange_history[-1].working_document
-                    await repo.update_working_document(session_id, final_doc)
+                    # Save exchange turns with token and credit info
+                    for turn in state.exchange_history:
+                        agent_config = next(
+                            (a for a in state.config.agents if a.agent_id == turn.agent_id),
+                            None
+                        )
+                        phase = getattr(agent_config, 'phase', 2) if agent_config else 2
+                        await repo.add_exchange_turn(
+                            session_id,
+                            turn,
+                            phase=phase,
+                            tokens_input=turn.tokens_input,
+                            tokens_output=turn.tokens_output,
+                        )
 
-                # Deduct credits for the session
-                from ..db.repository import CreditRepository
-                credit_repo = CreditRepository(db_session)
+                    # Update working document
+                    if state.exchange_history:
+                        final_doc = state.exchange_history[-1].working_document
+                        await repo.update_working_document(session_id, final_doc)
 
-                total_credits = orchestrator.session_credits_used
-                if total_credits > 0:
-                    # Deduct credits with description
-                    await credit_repo.deduct(
-                        user_id=user.id,
-                        amount=total_credits,
-                        session_id=session_id,
-                        description=f"Session: {state.config.title or session_id}",
-                    )
+                    # Deduct credits for the session
+                    from ..db.repository import CreditRepository
+                    credit_repo = CreditRepository(db_session)
 
-                    # Update session's total credits used
-                    await credit_repo.update_session_credits(session_id, total_credits)
+                    total_credits = orchestrator.session_credits_used
+                    if total_credits > 0:
+                        # Deduct credits with description
+                        await credit_repo.deduct(
+                            user_id=user.id,
+                            amount=total_credits,
+                            session_id=session_id,
+                            description=f"Session: {state.config.title or session_id}",
+                        )
 
-                    # Monitoring: track credit usage for anomaly detection
-                    await record_credit_usage(user.id, user.email, total_credits, session_id)
+                        # Update session's total credits used
+                        await credit_repo.update_session_credits(session_id, total_credits)
 
-                    logger.info(f"Deducted {total_credits} credits for session {session_id}")
+                        # Monitoring: track credit usage for anomaly detection
+                        await record_credit_usage(user.id, user.email, total_credits, session_id)
+
+                        logger.info(f"Deducted {total_credits} credits for session {session_id}")
 
         except Exception as e:
             logger.error(f"Streaming error: {e}")
@@ -510,6 +516,48 @@ async def stop_session(
     # Always update database status to "stopped" - this ensures the session
     # is marked as stopped even if the backend process has crashed
     await repo.update_status(session_id, "stopped", termination_reason="Stopped by user")
+
+    # Persist the accumulated state before clearing cache
+    # This ensures the frontend can reload the partial results
+    if state.current_round > 0:
+        await repo.update_round(session_id, state.current_round)
+
+    # Save any completed exchange turns that haven't been persisted yet
+    total_credits = 0
+    if state.exchange_history:
+        for turn in state.exchange_history:
+            agent_config = next(
+                (a for a in state.config.agents if a.agent_id == turn.agent_id),
+                None
+            )
+            phase = getattr(agent_config, 'phase', 2) if agent_config else 2
+            await repo.add_exchange_turn(
+                session_id,
+                turn,
+                phase=phase,
+                tokens_input=turn.tokens_input,
+                tokens_output=turn.tokens_output,
+            )
+            # Sum up credits used
+            if turn.credits_used:
+                total_credits += turn.credits_used
+
+        # Update working document with the latest version
+        final_doc = state.exchange_history[-1].working_document
+        await repo.update_working_document(session_id, final_doc)
+
+    # Deduct credits for completed work
+    if total_credits > 0:
+        from ..db.repository import CreditRepository
+        credit_repo = CreditRepository(db)
+        await credit_repo.deduct(
+            user_id=user.id,
+            amount=total_credits,
+            session_id=session_id,
+            description=f"Session stopped: {state.config.title or session_id}",
+        )
+        await credit_repo.update_session_credits(session_id, total_credits)
+        logger.info(f"Deducted {total_credits} credits for stopped session {session_id}")
 
     # Also set the cancellation flag on in-memory state if it exists and is running
     if state.is_running:
