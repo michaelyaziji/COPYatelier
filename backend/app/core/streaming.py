@@ -480,11 +480,19 @@ Do NOT rewrite the document. Produce a revision directive only."""
                             is_overload = 'overload' in error_str or 'rate' in error_str or '529' in error_str or '429' in error_str
 
                             if is_overload:
+                                # Build context-aware suggestion based on which provider failed
+                                if agent.provider == ProviderType.ANTHROPIC:
+                                    alt_suggestion = "GPT-4o or Gemini"
+                                elif agent.provider == ProviderType.OPENAI:
+                                    alt_suggestion = "Claude or Gemini"
+                                else:  # Google
+                                    alt_suggestion = "Claude or GPT-4o"
+
                                 # Send user-friendly error for overload
                                 logger.error(f"Error streaming from {agent.display_name} (overloaded after retries): {e}")
                                 yield self._create_event(StreamEventType.ERROR, {
                                     "agent_id": agent.agent_id,
-                                    "message": f"The AI service is currently overloaded. Please wait a moment and try again, or switch to a different model (e.g., GPT-4o or Gemini).",
+                                    "message": f"The AI service is currently overloaded. Please wait a moment and try again, or switch to a different model (e.g., {alt_suggestion}).",
                                     "error_type": "overload",
                                 })
                             else:
