@@ -35,6 +35,9 @@ def extract_content_from_response(full_response: str) -> str:
     """
     import re
 
+    if not full_response:
+        return ""
+
     cleaned = full_response.strip()
 
     # Check if there's content BEFORE a ```json block
@@ -69,8 +72,19 @@ def extract_content_from_response(full_response: str) -> str:
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             pass
 
-    # Fallback: return the full response
-    return full_response
+        # JSON parsing failed - try regex to extract output field
+        output_match = re.search(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned)
+        if output_match:
+            extracted = output_match.group(1)
+            # Unescape JSON string
+            extracted = extracted.replace('\\n', '\n')
+            extracted = extracted.replace('\\t', '\t')
+            extracted = extracted.replace('\\"', '"')
+            extracted = extracted.replace('\\\\', '\\')
+            return extracted
+
+    # Fallback: return cleaned content (without code fences)
+    return cleaned if cleaned else full_response
 
 
 class StreamEventType(str, Enum):
