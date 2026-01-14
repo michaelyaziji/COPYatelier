@@ -307,9 +307,6 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
         </div>
       )}
 
-      {/* Reference Materials */}
-      <ReferenceMaterials />
-
       {/* Initial Document (optional) */}
       <Card className="border border-zinc-200">
         <CardContent className="py-5">
@@ -319,7 +316,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                 <FileText className="h-5 w-5 text-zinc-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iv.</span> Do you have a draft to improve?</h3>
+                <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iii.</span> Do you have a draft to improve?</h3>
                 <p className="text-sm text-zinc-500">Optional - upload or paste existing text to refine</p>
               </div>
             </div>
@@ -377,7 +374,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                   <span className="text-blue-600">Processing...</span>
                 ) : (
                   <>
-                    <span className="font-medium text-blue-600">Click to upload</span>{' '}
+                    <span className="font-medium text-violet-600">Click to upload</span>{' '}
                     or drag and drop
                   </>
                 )}
@@ -412,6 +409,9 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* Reference Materials */}
+      <ReferenceMaterials />
 
       {/* Next Step Button */}
       {onNext && (

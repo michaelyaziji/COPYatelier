@@ -199,7 +199,7 @@ export function ReferenceMaterials() {
             <Paperclip className="h-5 w-5 text-zinc-600" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iii.</span> Do you have reference materials?</h3>
+            <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iv.</span> Do you have reference materials?</h3>
             <p className="text-sm text-zinc-500">Optional - upload style guides, outlines, or related documents (up to 9)</p>
           </div>
           {files.length > 0 && (
