@@ -109,78 +109,41 @@ export function formatAgentResponse(content: string): string {
 
 /**
  * Extract clean content from potentially JSON-wrapped output.
- * Removes JSON wrapper, evaluation scores, and code fences.
+ * Preserves all content (including reasoning) that appears before the JSON block.
+ * Only strips the JSON evaluation block itself.
  */
 export function extractCleanContent(content: string): string {
   let cleaned = content.trim();
 
-  // Remove markdown code fences (```json ... ``` or ``` ... ```)
-  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  cleaned = cleaned.trim();
+  // Check if there's a JSON code block at the end (```json ... ```)
+  const jsonCodeBlockMatch = cleaned.match(/\n*```json\s*\n[\s\S]*?```\s*$/);
+  if (jsonCodeBlockMatch) {
+    // Remove the JSON code block, keep everything before it
+    cleaned = cleaned.slice(0, jsonCodeBlockMatch.index).trim();
+    return cleaned;
+  }
 
-  // Try to parse as JSON and extract the "output" field
-  try {
-    if (cleaned.startsWith('{')) {
+  // Check for raw JSON object at the end (without code fences)
+  // Look for a JSON object that starts with { and contains "output" or "evaluation"
+  const jsonStartMatch = cleaned.match(/\n*\{\s*"(?:output|evaluation)"/);
+  if (jsonStartMatch) {
+    // Find where the JSON starts and keep everything before it
+    const beforeJson = cleaned.slice(0, jsonStartMatch.index).trim();
+    if (beforeJson) {
+      return beforeJson;
+    }
+  }
+
+  // Check if the entire content is JSON (starts with {)
+  if (cleaned.startsWith('{')) {
+    try {
       const parsed = JSON.parse(cleaned);
+      // If it's valid JSON with an output field, return that
       if (parsed.output) {
         return parsed.output.trim();
       }
-    }
-  } catch {
-    // Not valid JSON, try regex approach
-  }
-
-  // Check for "output": pattern with various quote styles
-  // Handle both "output": "value" and "output": "multi\nline\nvalue"
-  const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)"/)
-  if (outputMatch) {
-    // Unescape JSON string
-    return outputMatch[1]
-      .replace(/\\n/g, '\n')
-      .replace(/\\t/g, '\t')
-      .replace(/\\"/g, '"')
-      .replace(/\\\\/g, '\\')
-      .trim();
-  }
-
-  // If content still looks like it has JSON wrapper, try to extract more aggressively
-  if (cleaned.includes('"output"')) {
-    // Find everything after "output": " and before the closing "
-    const startMatch = cleaned.indexOf('"output"');
-    if (startMatch !== -1) {
-      const afterOutput = cleaned.substring(startMatch);
-      const colonQuote = afterOutput.indexOf('": "');
-      if (colonQuote !== -1) {
-        const contentStart = colonQuote + 4;
-        let contentEnd = contentStart;
-        let escaped = false;
-
-        // Find the closing quote, handling escapes
-        for (let i = contentStart; i < afterOutput.length; i++) {
-          if (escaped) {
-            escaped = false;
-            continue;
-          }
-          if (afterOutput[i] === '\\') {
-            escaped = true;
-            continue;
-          }
-          if (afterOutput[i] === '"') {
-            contentEnd = i;
-            break;
-          }
-        }
-
-        if (contentEnd > contentStart) {
-          const extracted = afterOutput.substring(contentStart, contentEnd);
-          return extracted
-            .replace(/\\n/g, '\n')
-            .replace(/\\t/g, '\t')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\')
-            .trim();
-        }
-      }
+    } catch {
+      // Not valid JSON, return as-is
     }
   }
 

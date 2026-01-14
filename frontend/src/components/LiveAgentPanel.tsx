@@ -8,48 +8,44 @@ import { Bot, Loader2 } from 'lucide-react';
 
 /**
  * Extract clean content from potentially JSON-wrapped streaming output.
- * Handles partial JSON during streaming gracefully.
+ * Preserves all content (including reasoning) that appears before the JSON block.
+ * Only strips the JSON evaluation block itself.
  */
 function extractStreamContent(content: string): string {
   if (!content) return '';
 
   let cleaned = content.trim();
 
-  // Remove markdown code fences
-  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
-  cleaned = cleaned.trim();
+  // Check if there's a JSON code block at the end (```json ... ```)
+  const jsonCodeBlockMatch = cleaned.match(/\n*```json\s*\n[\s\S]*?```\s*$/);
+  if (jsonCodeBlockMatch) {
+    // Remove the JSON code block, keep everything before it
+    cleaned = cleaned.slice(0, jsonCodeBlockMatch.index).trim();
+    return cleaned;
+  }
 
-  // If it looks like JSON with an "output" field, try to extract it
-  if (cleaned.includes('"output"')) {
-    // Try full JSON parse first (for complete content)
-    try {
-      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-        const parsed = JSON.parse(cleaned);
-        if (parsed.output) {
-          return parsed.output;
-        }
-      }
-    } catch {
-      // Not complete JSON yet, try regex extraction
-    }
-
-    // Try to extract partial output using regex
-    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
-    if (outputMatch) {
-      return outputMatch[1]
-        .replace(/\\n/g, '\n')
-        .replace(/\\t/g, '\t')
-        .replace(/\\"/g, '"')
-        .replace(/\\\\/g, '\\');
+  // Check for raw JSON object at the end (without code fences)
+  // Look for a JSON object that starts with { and contains "output" or "evaluation"
+  const jsonStartMatch = cleaned.match(/\n*\{\s*"(?:output|evaluation)"/);
+  if (jsonStartMatch) {
+    // Find where the JSON starts and keep everything before it
+    const beforeJson = cleaned.slice(0, jsonStartMatch.index).trim();
+    if (beforeJson) {
+      return beforeJson;
     }
   }
 
-  // If no JSON structure detected, return as-is (might be plain text output)
-  // Remove common JSON artifacts if present
+  // Check if the entire content is JSON (starts with {)
   if (cleaned.startsWith('{')) {
-    cleaned = cleaned.replace(/^\{\s*"?output"?\s*:\s*"?/, '');
-    cleaned = cleaned.replace(/\\n/g, '\n');
-    cleaned = cleaned.replace(/\\"/g, '"');
+    try {
+      const parsed = JSON.parse(cleaned);
+      // If it's valid JSON with an output field, return that
+      if (parsed.output) {
+        return parsed.output;
+      }
+    } catch {
+      // Not valid JSON, might be partial - return as-is for now
+    }
   }
 
   return cleaned;

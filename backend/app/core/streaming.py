@@ -19,6 +19,53 @@ from .provider_health import health_tracker
 logger = logging.getLogger(__name__)
 
 
+def extract_content_before_json(full_response: str) -> str:
+    """
+    Extract content that appears before the JSON block in an AI response.
+
+    Preserves all reasoning/content that comes before the ```json block,
+    rather than extracting just the "output" field from within the JSON.
+
+    Args:
+        full_response: The complete AI response including any JSON block
+
+    Returns:
+        The content before the JSON block, or the full response if no JSON found
+    """
+    import re
+
+    # Check for ```json code block
+    json_block_match = re.search(r'\n*```json\s*\n', full_response)
+    if json_block_match:
+        # Return everything before the ```json block
+        before_json = full_response[:json_block_match.start()].strip()
+        if before_json:
+            return before_json
+
+    # Check for raw JSON object (without code fences)
+    # Look for { followed by "output" or "evaluation"
+    json_start_match = re.search(r'\n*\{\s*"(?:output|evaluation)"', full_response)
+    if json_start_match:
+        before_json = full_response[:json_start_match.start()].strip()
+        if before_json:
+            return before_json
+
+    # If the entire response is JSON, try to extract the output field
+    if full_response.strip().startswith('{'):
+        try:
+            # Find the JSON object
+            json_match = full_response.find('{')
+            if json_match != -1:
+                data = json.loads(full_response[json_match:full_response.rfind('}')+1])
+                if data.get("output"):
+                    return data["output"]
+        except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+            pass
+
+    # No JSON structure found, return full response
+    return full_response
+
+
 class StreamEventType(str, Enum):
     """Types of streaming events."""
     SESSION_START = "session_start"
@@ -525,18 +572,8 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         expected_criteria = [c.name for c in agent.evaluation_criteria]
                         evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
-                        # Extract output
-                        if evaluation and '```json' in full_response:
-                            try:
-                                json_match = full_response.find('{')
-                                if json_match != -1:
-                                    data = json.loads(full_response[json_match:full_response.rfind('}')+1])
-                                    output = data.get("output", full_response)
-                            except (json.JSONDecodeError, KeyError, TypeError, ValueError) as e:
-                                logger.warning(f"Failed to parse JSON output: {e}")
-                                output = full_response
-                        else:
-                            output = full_response
+                        # Extract output - preserve content before JSON block
+                        output = extract_content_before_json(full_response)
 
                         # Update working document (only Writers update it)
                         updated_document = self._update_working_document(agent, output)
@@ -695,16 +732,8 @@ Do NOT rewrite the document. Produce a revision directive only."""
                                 expected_criteria = [c.name for c in writer.evaluation_criteria]
                                 evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
-                                if evaluation and '```json' in full_response:
-                                    try:
-                                        json_match = full_response.find('{')
-                                        if json_match != -1:
-                                            data = json.loads(full_response[json_match:full_response.rfind('}')+1])
-                                            output = data.get("output", full_response)
-                                    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
-                                        output = full_response
-                                else:
-                                    output = full_response
+                                # Extract output - preserve content before JSON block
+                                output = extract_content_before_json(full_response)
 
                                 updated_document = self._update_working_document(writer, output)
 
