@@ -109,41 +109,61 @@ export function formatAgentResponse(content: string): string {
 
 /**
  * Extract clean content from potentially JSON-wrapped output.
- * Preserves all content (including reasoning) that appears before the JSON block.
- * Only strips the JSON evaluation block itself.
+ *
+ * Strategy:
+ * 1. If there's prose BEFORE a JSON block, return that prose (includes reasoning)
+ * 2. If the entire content is a JSON block, extract the "output" field
  */
 export function extractCleanContent(content: string): string {
   let cleaned = content.trim();
 
-  // Check if there's a JSON code block at the end (```json ... ```)
-  const jsonCodeBlockMatch = cleaned.match(/\n*```json\s*\n[\s\S]*?```\s*$/);
-  if (jsonCodeBlockMatch) {
-    // Remove the JSON code block, keep everything before it
-    cleaned = cleaned.slice(0, jsonCodeBlockMatch.index).trim();
-    return cleaned;
-  }
-
-  // Check for raw JSON object at the end (without code fences)
-  // Look for a JSON object that starts with { and contains "output" or "evaluation"
-  const jsonStartMatch = cleaned.match(/\n*\{\s*"(?:output|evaluation)"/);
-  if (jsonStartMatch) {
-    // Find where the JSON starts and keep everything before it
-    const beforeJson = cleaned.slice(0, jsonStartMatch.index).trim();
+  // Check if there's content BEFORE a ```json block
+  const jsonBlockStart = cleaned.indexOf('```json');
+  if (jsonBlockStart > 0) {
+    // There's prose before the JSON - return it
+    const beforeJson = cleaned.slice(0, jsonBlockStart).trim();
     if (beforeJson) {
       return beforeJson;
     }
   }
 
-  // Check if the entire content is JSON (starts with {)
-  if (cleaned.startsWith('{')) {
+  // Check if there's content BEFORE a raw JSON object (not wrapped in fences)
+  const rawJsonMatch = cleaned.match(/\n\{\s*"(?:output|evaluation)"/);
+  if (rawJsonMatch && rawJsonMatch.index && rawJsonMatch.index > 0) {
+    const beforeJson = cleaned.slice(0, rawJsonMatch.index).trim();
+    if (beforeJson) {
+      return beforeJson;
+    }
+  }
+
+  // No prose before JSON - the entire content is the JSON block
+  // Strip code fences and extract the "output" field
+  cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
+  cleaned = cleaned.trim();
+
+  // Try to extract "output" field from JSON
+  if (cleaned.includes('"output"')) {
+    // Try full JSON parse
     try {
-      const parsed = JSON.parse(cleaned);
-      // If it's valid JSON with an output field, return that
-      if (parsed.output) {
-        return parsed.output.trim();
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+        const parsed = JSON.parse(cleaned);
+        if (parsed.output) {
+          return parsed.output.trim();
+        }
       }
     } catch {
-      // Not valid JSON, return as-is
+      // Not valid JSON, try regex
+    }
+
+    // Try regex extraction
+    const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)"/)
+    if (outputMatch) {
+      return outputMatch[1]
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t')
+        .replace(/\\"/g, '"')
+        .replace(/\\\\/g, '\\')
+        .trim();
     }
   }
 

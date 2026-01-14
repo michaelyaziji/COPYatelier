@@ -19,50 +19,57 @@ from .provider_health import health_tracker
 logger = logging.getLogger(__name__)
 
 
-def extract_content_before_json(full_response: str) -> str:
+def extract_content_from_response(full_response: str) -> str:
     """
-    Extract content that appears before the JSON block in an AI response.
+    Extract clean content from an AI response that may contain JSON.
 
-    Preserves all reasoning/content that comes before the ```json block,
-    rather than extracting just the "output" field from within the JSON.
+    Strategy:
+    1. If there's prose BEFORE a JSON block, return that prose (includes reasoning)
+    2. If the entire content is a JSON block, extract the "output" field
 
     Args:
         full_response: The complete AI response including any JSON block
 
     Returns:
-        The content before the JSON block, or the full response if no JSON found
+        The extracted content
     """
     import re
 
-    # Check for ```json code block
-    json_block_match = re.search(r'\n*```json\s*\n', full_response)
-    if json_block_match:
-        # Return everything before the ```json block
-        before_json = full_response[:json_block_match.start()].strip()
+    cleaned = full_response.strip()
+
+    # Check if there's content BEFORE a ```json block
+    json_block_start = cleaned.find('```json')
+    if json_block_start > 0:
+        before_json = cleaned[:json_block_start].strip()
         if before_json:
             return before_json
 
-    # Check for raw JSON object (without code fences)
-    # Look for { followed by "output" or "evaluation"
-    json_start_match = re.search(r'\n*\{\s*"(?:output|evaluation)"', full_response)
-    if json_start_match:
-        before_json = full_response[:json_start_match.start()].strip()
+    # Check if there's content BEFORE a raw JSON object
+    raw_json_match = re.search(r'\n\{\s*"(?:output|evaluation)"', cleaned)
+    if raw_json_match and raw_json_match.start() > 0:
+        before_json = cleaned[:raw_json_match.start()].strip()
         if before_json:
             return before_json
 
-    # If the entire response is JSON, try to extract the output field
-    if full_response.strip().startswith('{'):
+    # No prose before JSON - extract the "output" field from JSON
+    # Strip code fences first
+    cleaned = re.sub(r'^```(?:json)?\s*\n?', '', cleaned)
+    cleaned = re.sub(r'\n?```\s*$', '', cleaned)
+    cleaned = cleaned.strip()
+
+    # Try to parse JSON and extract output
+    if cleaned.startswith('{'):
         try:
-            # Find the JSON object
-            json_match = full_response.find('{')
-            if json_match != -1:
-                data = json.loads(full_response[json_match:full_response.rfind('}')+1])
+            # Find the complete JSON object
+            json_end = cleaned.rfind('}')
+            if json_end != -1:
+                data = json.loads(cleaned[:json_end + 1])
                 if data.get("output"):
                     return data["output"]
         except (json.JSONDecodeError, KeyError, TypeError, ValueError):
             pass
 
-    # No JSON structure found, return full response
+    # Fallback: return the full response
     return full_response
 
 
@@ -573,7 +580,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
                         # Extract output - preserve content before JSON block
-                        output = extract_content_before_json(full_response)
+                        output = extract_content_from_response(full_response)
 
                         # Update working document (only Writers update it)
                         updated_document = self._update_working_document(agent, output)
@@ -733,7 +740,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
                                 evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
                                 # Extract output - preserve content before JSON block
-                                output = extract_content_before_json(full_response)
+                                output = extract_content_from_response(full_response)
 
                                 updated_document = self._update_working_document(writer, output)
 
