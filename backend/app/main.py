@@ -14,7 +14,7 @@ from .api.billing import router as billing_router, webhook_router
 from .api.admin import router as admin_router
 from .core.config import get_settings
 from .core.security import SecurityHeadersMiddleware, RequestLoggingMiddleware, limiter
-from .core.provider_health import health_tracker
+from .core.provider_health import health_tracker, health_check_service
 from .db.database import init_db, close_db
 
 # Configure logging
@@ -44,10 +44,14 @@ async def lifespan(app: FastAPI):
         await init_db()
         logger.info("Database initialized")
 
+    # Start proactive health checks for AI providers
+    await health_check_service.start(settings)
+
     yield
 
     # Cleanup
     logger.info("Shutting down Atelier")
+    await health_check_service.stop()
     await close_db()
 
 

@@ -1,5 +1,7 @@
 """Provider health tracking based on recent API call success/failure rates."""
 
+import asyncio
+import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -8,6 +10,8 @@ from threading import Lock
 from typing import Optional
 
 from ..models.agent import ProviderType
+
+logger = logging.getLogger(__name__)
 
 
 class HealthStatus(str, Enum):
@@ -47,7 +51,7 @@ class ProviderHealthTracker:
 
     # Configuration
     WINDOW_SECONDS = 300  # 5 minute window
-    MIN_CALLS_FOR_STATUS = 3  # Need at least 3 calls to determine status
+    MIN_CALLS_FOR_STATUS = 1  # Need at least 1 call to determine status
     DEGRADED_THRESHOLD = 0.7  # Below 70% success = degraded
     UNHEALTHY_THRESHOLD = 0.3  # Below 30% success = unhealthy
 
@@ -155,3 +159,118 @@ class ProviderHealthTracker:
 
 # Global instance
 health_tracker = ProviderHealthTracker()
+
+
+class HealthCheckService:
+    """
+    Background service that proactively pings AI providers to check their health.
+
+    Uses the cheapest model from each provider to minimize costs:
+    - Anthropic: claude-haiku-4-5-20250110
+    - OpenAI: gpt-4o-mini
+    - Google: gemini-2.0-flash
+    """
+
+    PING_INTERVAL = 60  # seconds
+    PING_PROMPT = "Respond with only the word OK"
+
+    # Cheapest models for health checks
+    HEALTH_CHECK_MODELS = {
+        ProviderType.ANTHROPIC: "claude-haiku-4-5-20250110",
+        ProviderType.OPENAI: "gpt-4o-mini",
+        ProviderType.GOOGLE: "gemini-2.0-flash",
+    }
+
+    def __init__(self):
+        self._running = False
+        self._task: Optional[asyncio.Task] = None
+        self._providers: dict = {}
+
+    async def start(self, settings) -> None:
+        """Start the background health check service."""
+        if self._running:
+            return
+
+        self._running = True
+        self._init_providers(settings)
+
+        # Run initial health check immediately
+        await self._ping_all_providers()
+
+        # Start background task
+        self._task = asyncio.create_task(self._run_loop())
+        logger.info("Health check service started (pinging every %d seconds)", self.PING_INTERVAL)
+
+    async def stop(self) -> None:
+        """Stop the background health check service."""
+        self._running = False
+        if self._task:
+            self._task.cancel()
+            try:
+                await self._task
+            except asyncio.CancelledError:
+                pass
+        logger.info("Health check service stopped")
+
+    def _init_providers(self, settings) -> None:
+        """Initialize provider clients."""
+        from ..providers import AnthropicProvider, OpenAIProvider, GoogleProvider
+
+        if settings.anthropic_api_key:
+            self._providers[ProviderType.ANTHROPIC] = AnthropicProvider(
+                api_key=settings.anthropic_api_key
+            )
+
+        if settings.openai_api_key:
+            self._providers[ProviderType.OPENAI] = OpenAIProvider(
+                api_key=settings.openai_api_key
+            )
+
+        if settings.google_api_key:
+            self._providers[ProviderType.GOOGLE] = GoogleProvider(
+                api_key=settings.google_api_key
+            )
+
+    async def _run_loop(self) -> None:
+        """Background loop that pings providers periodically."""
+        while self._running:
+            await asyncio.sleep(self.PING_INTERVAL)
+            if self._running:
+                await self._ping_all_providers()
+
+    async def _ping_all_providers(self) -> None:
+        """Ping all configured providers concurrently."""
+        tasks = []
+        for provider_type, provider in self._providers.items():
+            tasks.append(self._ping_provider(provider_type, provider))
+
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+
+    async def _ping_provider(self, provider_type: ProviderType, provider) -> None:
+        """Ping a single provider and record the result."""
+        model = self.HEALTH_CHECK_MODELS[provider_type]
+
+        try:
+            response = await provider.generate(
+                system_prompt="You are a health check responder.",
+                user_prompt=self.PING_PROMPT,
+                model=model,
+                temperature=0,
+                max_tokens=10,
+            )
+
+            # Success - record it
+            health_tracker.record_success(provider_type)
+            logger.debug("Health check OK: %s", provider_type.value)
+
+        except Exception as e:
+            error_str = str(e).lower()
+            is_overload = 'overload' in error_str or 'rate' in error_str or '529' in error_str or '429' in error_str
+
+            health_tracker.record_failure(provider_type, str(e), is_overload=is_overload)
+            logger.warning("Health check FAILED for %s: %s", provider_type.value, e)
+
+
+# Global service instance
+health_check_service = HealthCheckService()
