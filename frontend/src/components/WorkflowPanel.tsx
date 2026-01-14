@@ -108,19 +108,25 @@ function RoleCard({ role, isExpanded, onToggleExpanded, onToggleRole, onUpdatePr
           <p className="text-xs text-zinc-400 truncate">{role.description}</p>
         </div>
 
-        {/* Expand button */}
+        {/* Expand button - visible labeled button for discoverability */}
         {role.isActive && (
           <button
             onClick={(e) => {
               e.stopPropagation();
               onToggleExpanded(role.id);
             }}
-            className="p-1 hover:bg-zinc-100 rounded"
+            className={clsx(
+              'flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-lg transition-all',
+              isExpanded
+                ? 'bg-violet-100 text-violet-700 hover:bg-violet-200'
+                : 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+            )}
           >
+            <span>{isExpanded ? 'Hide options' : 'Choose model & customize'}</span>
             {isExpanded ? (
-              <ChevronUp className="w-4 h-4 text-zinc-400" />
+              <ChevronUp className="w-3.5 h-3.5" />
             ) : (
-              <ChevronDown className="w-4 h-4 text-zinc-400" />
+              <ChevronDown className="w-3.5 h-3.5" />
             )}
           </button>
         )}
