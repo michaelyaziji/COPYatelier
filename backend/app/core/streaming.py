@@ -10,7 +10,7 @@ from enum import Enum
 from ..models.agent import AgentConfig, ProviderType
 from ..models.session import SessionState, OrchestrationFlow
 from ..models.exchange import ExchangeTurn, Evaluation
-from ..providers import AIProvider, AnthropicProvider, GoogleProvider, OpenAIProvider
+from ..providers import AIProvider, AnthropicProvider, GoogleProvider, OpenAIProvider, PerplexityProvider
 from .config import get_settings
 from .evaluation import parse_evaluation
 from .credits import calculate_credits
@@ -77,6 +77,11 @@ class StreamingOrchestrator:
         if self.settings.openai_api_key:
             providers[ProviderType.OPENAI] = OpenAIProvider(
                 api_key=self.settings.openai_api_key
+            )
+
+        if self.settings.perplexity_api_key:
+            providers[ProviderType.PERPLEXITY] = PerplexityProvider(
+                api_key=self.settings.perplexity_api_key
             )
 
         return providers

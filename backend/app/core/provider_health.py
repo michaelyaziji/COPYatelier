@@ -75,6 +75,7 @@ class ProviderHealthTracker:
             ProviderType.ANTHROPIC: deque(maxlen=100),
             ProviderType.OPENAI: deque(maxlen=100),
             ProviderType.GOOGLE: deque(maxlen=100),
+            ProviderType.PERPLEXITY: deque(maxlen=100),
         }
         self._last_errors: dict[ProviderType, tuple[str, float]] = {}
         self._initialized = True
@@ -179,6 +180,7 @@ class HealthCheckService:
         ProviderType.ANTHROPIC: "claude-haiku-4-5-20250110",
         ProviderType.OPENAI: "gpt-4o-mini",
         ProviderType.GOOGLE: "gemini-2.0-flash",
+        ProviderType.PERPLEXITY: "sonar",
     }
 
     def __init__(self):
@@ -214,7 +216,7 @@ class HealthCheckService:
 
     def _init_providers(self, settings) -> None:
         """Initialize provider clients."""
-        from ..providers import AnthropicProvider, OpenAIProvider, GoogleProvider
+        from ..providers import AnthropicProvider, OpenAIProvider, GoogleProvider, PerplexityProvider
 
         if settings.anthropic_api_key:
             self._providers[ProviderType.ANTHROPIC] = AnthropicProvider(
@@ -229,6 +231,11 @@ class HealthCheckService:
         if settings.google_api_key:
             self._providers[ProviderType.GOOGLE] = GoogleProvider(
                 api_key=settings.google_api_key
+            )
+
+        if settings.perplexity_api_key:
+            self._providers[ProviderType.PERPLEXITY] = PerplexityProvider(
+                api_key=settings.perplexity_api_key
             )
 
     async def _run_loop(self) -> None:

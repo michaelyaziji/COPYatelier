@@ -26,6 +26,11 @@ MODEL_CREDIT_MULTIPLIERS = {
     "o1": 5.5,
     "o1-mini": 2.0,
     "o3-mini": 2.0,
+
+    # Perplexity (includes web search)
+    "sonar": 0.5,
+    "sonar-pro": 1.5,
+    "sonar-reasoning": 2.5,
 }
 
 # Tier monthly credit allocations

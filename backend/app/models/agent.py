@@ -10,6 +10,7 @@ class ProviderType(str, Enum):
     ANTHROPIC = "anthropic"
     GOOGLE = "google"
     OPENAI = "openai"
+    PERPLEXITY = "perplexity"
 
 
 class ModelType(str, Enum):
@@ -31,6 +32,11 @@ class ModelType(str, Enum):
     O1 = "o1"
     O1_MINI = "o1-mini"
     O3_MINI = "o3-mini"
+
+    # Perplexity (with web search)
+    SONAR = "sonar"
+    SONAR_PRO = "sonar-pro"
+    SONAR_REASONING = "sonar-reasoning"
 
 
 class EvaluationCriterion(BaseModel):

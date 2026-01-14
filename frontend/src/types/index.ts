@@ -1,6 +1,6 @@
 // Types matching the backend models
 
-export type ProviderType = 'anthropic' | 'google' | 'openai';
+export type ProviderType = 'anthropic' | 'google' | 'openai' | 'perplexity';
 
 export type ModelType =
   // Anthropic
@@ -17,7 +17,11 @@ export type ModelType =
   | 'gpt-4o-mini'
   | 'o1'
   | 'o1-mini'
-  | 'o3-mini';
+  | 'o3-mini'
+  // Perplexity
+  | 'sonar'
+  | 'sonar-pro'
+  | 'sonar-reasoning';
 
 export interface EvaluationCriterion {
   name: string;
@@ -110,12 +114,17 @@ export const MODELS: ModelOption[] = [
   { value: 'o1', label: 'o1', provider: 'openai' },
   { value: 'o1-mini', label: 'o1 Mini', provider: 'openai' },
   { value: 'o3-mini', label: 'o3 Mini', provider: 'openai' },
+  // Perplexity (with web search)
+  { value: 'sonar', label: 'Sonar', provider: 'perplexity' },
+  { value: 'sonar-pro', label: 'Sonar Pro', provider: 'perplexity' },
+  { value: 'sonar-reasoning', label: 'Sonar Reasoning', provider: 'perplexity' },
 ];
 
 export const PROVIDERS: { value: ProviderType; label: string }[] = [
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'google', label: 'Google Gemini' },
   { value: 'openai', label: 'OpenAI' },
+  { value: 'perplexity', label: 'Perplexity' },
 ];
 
 // Streaming event types

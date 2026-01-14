@@ -109,6 +109,7 @@ async def health():
         "anthropic": bool(settings.anthropic_api_key),
         "google": bool(settings.google_api_key),
         "openai": bool(settings.openai_api_key),
+        "perplexity": bool(settings.perplexity_api_key),
     }
 
     # Get real-time health status from recent API calls
