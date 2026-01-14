@@ -21,17 +21,17 @@ logger = logging.getLogger(__name__)
 
 def extract_content_from_response(full_response: str) -> str:
     """
-    Extract clean content from an AI response that may contain JSON.
+    Extract and format content from an AI response that may contain JSON.
 
     Strategy:
     1. If there's real prose BEFORE a JSON block, return that prose (includes reasoning)
-    2. If the entire content is a JSON block, extract the "output" field
+    2. If the entire content is a JSON block, extract and format ALL fields (thinking, reasoning, output, etc.)
 
     Args:
         full_response: The complete AI response including any JSON block
 
     Returns:
-        The extracted content
+        The extracted and formatted content
     """
     import re
 
@@ -55,28 +55,66 @@ def extract_content_from_response(full_response: str) -> str:
         cleaned = re.sub(r'\n?```\s*$', '', cleaned)
         cleaned = cleaned.strip()
 
-        # Try to parse JSON and extract output
+        # Try to parse JSON and extract ALL fields (not just output)
         if cleaned.startswith('{'):
             try:
-                # Find the complete JSON object
                 json_end = cleaned.rfind('}')
                 if json_end != -1:
                     data = json.loads(cleaned[:json_end + 1])
+                    parts = []
+
+                    # Add thinking/reasoning if present
+                    if data.get("thinking"):
+                        parts.append(f"**Thinking:**\n{data['thinking']}")
+                    if data.get("reasoning"):
+                        parts.append(f"**Reasoning:**\n{data['reasoning']}")
+                    if data.get("analysis"):
+                        parts.append(f"**Analysis:**\n{data['analysis']}")
+                    if data.get("comments"):
+                        parts.append(f"**Comments:**\n{data['comments']}")
+                    if data.get("feedback"):
+                        parts.append(f"**Feedback:**\n{data['feedback']}")
+                    if data.get("suggestions"):
+                        parts.append(f"**Suggestions:**\n{data['suggestions']}")
+                    if data.get("changes"):
+                        parts.append(f"**Changes Made:**\n{data['changes']}")
+
+                    # Add the output
                     if data.get("output"):
-                        return data["output"]
+                        parts.append(f"**Output:**\n{data['output']}")
+
+                    if parts:
+                        return "\n\n".join(parts)
             except (json.JSONDecodeError, KeyError, TypeError, ValueError):
                 pass
 
-            # JSON parsing failed - try regex to extract output field
-            output_match = re.search(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned)
-            if output_match:
-                extracted = output_match.group(1)
-                # Unescape JSON string
-                extracted = extracted.replace('\\n', '\n')
-                extracted = extracted.replace('\\t', '\t')
-                extracted = extracted.replace('\\"', '"')
-                extracted = extracted.replace('\\\\', '\\')
-                return extracted
+            # JSON parsing failed - try regex to extract all fields
+            field_patterns = [
+                ("thinking", "Thinking"),
+                ("reasoning", "Reasoning"),
+                ("analysis", "Analysis"),
+                ("comments", "Comments"),
+                ("feedback", "Feedback"),
+                ("suggestions", "Suggestions"),
+                ("changes", "Changes Made"),
+                ("output", "Output"),
+            ]
+
+            sections = []
+            for key, label in field_patterns:
+                match = re.search(rf'"{key}"\s*:\s*"((?:[^"\\]|\\.)*)"', cleaned)
+                if match:
+                    value = match.group(1)
+                    value = value.replace('\\n', '\n')
+                    value = value.replace('\\t', '\t')
+                    value = value.replace('\\"', '"')
+                    value = value.replace('\\\\', '\\')
+                    value = value.strip()
+                    if value:
+                        sections.append(f"**{label}:**\n{value}")
+
+            if sections:
+                return "\n\n".join(sections)
 
         return cleaned if cleaned else full_response
 

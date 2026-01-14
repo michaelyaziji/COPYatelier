@@ -7,11 +7,11 @@ import { clsx } from 'clsx';
 import { Bot, Loader2 } from 'lucide-react';
 
 /**
- * Extract clean content from potentially JSON-wrapped streaming output.
+ * Extract and format content from potentially JSON-wrapped streaming output.
  *
  * Strategy:
  * 1. If there's real prose BEFORE a JSON block, return that prose (includes reasoning)
- * 2. If the entire content is a JSON block, extract the "output" field
+ * 2. If the entire content is a JSON block, extract and format ALL fields (thinking, reasoning, output, etc.)
  */
 function extractStreamContent(content: string): string {
   if (!content) return '';
@@ -30,38 +30,89 @@ function extractStreamContent(content: string): string {
 
   // Check if content starts with ```json - if so, it's a JSON code block
   if (cleaned.startsWith('```json') || cleaned.startsWith('```\n{') || cleaned.startsWith('{')) {
-    // Strip code fences and extract the "output" field
+    // Strip code fences
     cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
     cleaned = cleaned.trim();
 
-    // Try to extract "output" field from JSON
-    if (cleaned.includes('"output"')) {
-      // Try full JSON parse first (for complete content)
-      try {
-        if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
-          const parsed = JSON.parse(cleaned);
-          if (parsed.output) {
-            return parsed.output;
-          }
-        }
-      } catch {
-        // Not complete JSON yet, try regex extraction
-      }
+    // Try full JSON parse to extract ALL fields (not just output)
+    try {
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+        const parsed = JSON.parse(cleaned);
+        const parts: string[] = [];
 
-      // Try to extract partial output using regex (handles streaming)
-      const outputMatch = cleaned.match(/"output"\s*:\s*"((?:[^"\\]|\\.)*)(?:"|$)/);
-      if (outputMatch) {
-        return outputMatch[1]
+        // Add thinking/reasoning if present
+        if (parsed.thinking) {
+          parts.push(`**Thinking:**\n${parsed.thinking}`);
+        }
+        if (parsed.reasoning) {
+          parts.push(`**Reasoning:**\n${parsed.reasoning}`);
+        }
+        if (parsed.analysis) {
+          parts.push(`**Analysis:**\n${parsed.analysis}`);
+        }
+        if (parsed.comments) {
+          parts.push(`**Comments:**\n${parsed.comments}`);
+        }
+        if (parsed.feedback) {
+          parts.push(`**Feedback:**\n${parsed.feedback}`);
+        }
+        if (parsed.suggestions) {
+          parts.push(`**Suggestions:**\n${parsed.suggestions}`);
+        }
+        if (parsed.changes) {
+          parts.push(`**Changes Made:**\n${parsed.changes}`);
+        }
+
+        // Add the output
+        if (parsed.output) {
+          parts.push(`**Output:**\n${parsed.output}`);
+        }
+
+        if (parts.length > 0) {
+          return parts.join('\n\n');
+        }
+      }
+    } catch {
+      // Not complete JSON yet, try regex extraction for streaming
+    }
+
+    // Regex extraction for streaming (partial JSON)
+    const fieldPatterns = [
+      { key: 'thinking', label: 'Thinking' },
+      { key: 'reasoning', label: 'Reasoning' },
+      { key: 'analysis', label: 'Analysis' },
+      { key: 'comments', label: 'Comments' },
+      { key: 'feedback', label: 'Feedback' },
+      { key: 'suggestions', label: 'Suggestions' },
+      { key: 'changes', label: 'Changes Made' },
+      { key: 'output', label: 'Output' },
+    ];
+
+    const sections: string[] = [];
+    for (const { key, label } of fieldPatterns) {
+      // Match complete or partial field values
+      const regex = new RegExp(`"${key}"\\s*:\\s*"((?:[^"\\\\]|\\\\.)*)(?:"|$)`, 's');
+      const match = cleaned.match(regex);
+      if (match) {
+        const value = match[1]
           .replace(/\\n/g, '\n')
           .replace(/\\t/g, '\t')
           .replace(/\\"/g, '"')
-          .replace(/\\\\/g, '\\');
+          .replace(/\\\\/g, '\\')
+          .trim();
+        if (value) {
+          sections.push(`**${label}:**\n${value}`);
+        }
       }
+    }
+
+    if (sections.length > 0) {
+      return sections.join('\n\n');
     }
 
     // Fallback: clean up any remaining JSON artifacts
     if (cleaned.startsWith('{')) {
-      cleaned = cleaned.replace(/^\{\s*"?output"?\s*:\s*"?/, '');
+      cleaned = cleaned.replace(/^\{\s*/, '');
       cleaned = cleaned.replace(/\\n/g, '\n');
       cleaned = cleaned.replace(/\\"/g, '"');
     }
