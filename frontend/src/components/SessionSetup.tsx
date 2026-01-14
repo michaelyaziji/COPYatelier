@@ -237,8 +237,9 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                 type="number"
                 min={1}
                 max={10}
-                value={maxRounds}
-                onChange={(e) => setMaxRounds(parseInt(e.target.value) || 3)}
+                value={maxRounds || ''}
+                onChange={(e) => setMaxRounds(parseInt(e.target.value) || 0)}
+                onBlur={() => { if (maxRounds < 1) setMaxRounds(3); }}
                 className="w-full px-4 py-3 border-2 border-zinc-200 rounded-xl text-sm bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white hover:border-violet-300 hover:bg-white transition-all"
               />
               <p className="mt-1.5 text-xs text-zinc-400">
