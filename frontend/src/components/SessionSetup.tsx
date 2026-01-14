@@ -192,16 +192,16 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
             </div>
           </div>
 
-          {/* Prompt Builder */}
-          <PromptBuilder onGenerate={setInitialPrompt} />
-
           <Textarea
             value={initialPrompt}
             onChange={(e) => setInitialPrompt(e.target.value)}
             placeholder="Example: Write a compelling 800-word blog post about the future of remote work. Include statistics, address common concerns, and end with actionable tips for companies transitioning to hybrid models."
             rows={5}
-            className="text-base"
+            className="text-base border-2 border-violet-300 focus:border-violet-500 mb-5"
           />
+
+          {/* Prompt Builder */}
+          <PromptBuilder onGenerate={setInitialPrompt} />
         </CardContent>
       </Card>
 
