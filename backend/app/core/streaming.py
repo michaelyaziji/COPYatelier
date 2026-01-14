@@ -351,9 +351,8 @@ IMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.
 
 Instructions:
 - Read the editorial feedback carefully
-- Incorporate feedback that strengthens the work
-- Push back (in your self-evaluation) on suggestions that would weaken it
-- Preserve what's working
+- Incorporate the feedback by default, unless you feel strongly it would harm the work
+- Preserve what works
 
 OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feedback - output the actual text of the document."""
 
