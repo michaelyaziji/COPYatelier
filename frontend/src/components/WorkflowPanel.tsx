@@ -100,12 +100,12 @@ function RoleCard({ role, isExpanded, onToggleExpanded, onToggleRole, onUpdatePr
               )}
             </p>
             {role.isActive && (
-              <span className="text-xs text-zinc-400 bg-zinc-100 px-1.5 py-0.5 rounded">
+              <span className="text-xs text-zinc-500 bg-zinc-100 px-1.5 py-0.5 rounded">
                 {modelLabel}
               </span>
             )}
           </div>
-          <p className="text-xs text-zinc-400 truncate">{role.description}</p>
+          <p className="text-xs text-zinc-500 truncate">{role.description}</p>
         </div>
 
         {/* Expand button - visible labeled button for discoverability */}
@@ -265,7 +265,7 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
               <span className="text-sm font-semibold text-zinc-700">
                 Editorial Review
                 {activePhase2Count > 0 && (
-                  <span className="text-zinc-400 font-normal ml-2">
+                  <span className="text-zinc-500 font-normal ml-2">
                     ({activePhase2Count} active, run in parallel)
                   </span>
                 )}
@@ -300,7 +300,7 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
               <span className="text-sm font-semibold text-zinc-700">
                 Synthesis
                 {!hasActiveSynthesizer && (
-                  <span className="text-zinc-400 font-normal ml-2">(optional)</span>
+                  <span className="text-zinc-500 font-normal ml-2">(optional)</span>
                 )}
               </span>
             </div>
@@ -320,7 +320,7 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
           </div>
 
           {/* Arrow back to Writer */}
-          <div className="flex items-center justify-center gap-2 text-zinc-400">
+          <div className="flex items-center justify-center gap-2 text-zinc-500">
             <div className="flex-1 h-px bg-zinc-200" />
             <span className="text-xs">Back to Writer for next round</span>
             <div className="flex-1 h-px bg-zinc-200" />
