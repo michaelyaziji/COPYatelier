@@ -561,6 +561,10 @@ class ApiClient {
     });
   }
 
+  async getAdminSessionDetail(sessionId: string): Promise<AdminSessionDetail> {
+    return this.request(`/admin/sessions/${sessionId}`);
+  }
+
   // Admin - Transactions
   async listAdminTransactions(params?: {
     limit?: number;
@@ -736,6 +740,43 @@ export interface AdminSession {
   termination_reason: string | null;
   created_at: string | null;
   completed_at: string | null;
+}
+
+export interface AdminSessionTurn {
+  id: string;
+  turn_number: number;
+  round_number: number;
+  phase: number;
+  agent_id: string;
+  agent_name: string;
+  tokens_input: number;
+  tokens_output: number;
+  tokens_total: number;
+  credits_used: number;
+  output_preview: string | null;
+  has_evaluation: boolean;
+  evaluation_score: number | null;
+  created_at: string | null;
+}
+
+export interface AdminSessionDetail {
+  id: string;
+  title: string;
+  status: string;
+  user_id: string | null;
+  user_email: string | null;
+  current_round: number;
+  termination_reason: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  completed_at: string | null;
+  usage: {
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_tokens: number;
+    total_credits: number;
+  };
+  turns: AdminSessionTurn[];
 }
 
 export interface AdminTransaction {

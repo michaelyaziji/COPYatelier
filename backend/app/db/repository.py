@@ -258,6 +258,7 @@ class SessionRepository:
         phase: int = 2,
         tokens_input: Optional[int] = None,
         tokens_output: Optional[int] = None,
+        credits_used: Optional[int] = None,
     ) -> ExchangeTurnModel:
         """
         Add an exchange turn to a session.
@@ -268,6 +269,7 @@ class SessionRepository:
             phase: Phase number (1=Writer, 2=Editor, 3=Synthesizer)
             tokens_input: Optional input token count
             tokens_output: Optional output token count
+            credits_used: Optional credits consumed for this turn
 
         Returns:
             Created ExchangeTurnModel
@@ -287,6 +289,7 @@ class SessionRepository:
             parse_error=turn.parse_error,
             tokens_input=tokens_input,
             tokens_output=tokens_output,
+            credits_used=credits_used,
             completed_at=turn.timestamp,
         )
 
@@ -2211,6 +2214,83 @@ class AdminRepository:
             }
             for s in sessions
         ]
+
+    async def get_session_detail(self, session_id: str) -> Optional[dict]:
+        """
+        Get detailed session information including all turns with token usage.
+
+        Args:
+            session_id: Session ID
+
+        Returns:
+            Session dict with turns and token breakdown, or None if not found
+        """
+        result = await self.db.execute(
+            select(SessionModel)
+            .where(SessionModel.id == session_id)
+            .options(
+                selectinload(SessionModel.user),
+                selectinload(SessionModel.exchange_turns),
+            )
+        )
+        session = result.scalar_one_or_none()
+
+        if not session:
+            return None
+
+        # Calculate token totals
+        total_input_tokens = 0
+        total_output_tokens = 0
+        total_credits = 0
+
+        turns = []
+        for turn in sorted(session.exchange_turns, key=lambda t: t.turn_number):
+            input_tokens = turn.tokens_input or 0
+            output_tokens = turn.tokens_output or 0
+            credits = turn.credits_used or 0
+
+            total_input_tokens += input_tokens
+            total_output_tokens += output_tokens
+            total_credits += credits
+
+            turns.append({
+                "id": turn.id,
+                "turn_number": turn.turn_number,
+                "round_number": turn.round_number,
+                "phase": turn.phase,
+                "agent_id": turn.agent_id,
+                "agent_name": turn.agent_name,
+                "tokens_input": input_tokens,
+                "tokens_output": output_tokens,
+                "tokens_total": input_tokens + output_tokens,
+                "credits_used": credits,
+                "output_preview": turn.output[:200] + "..." if turn.output and len(turn.output) > 200 else turn.output,
+                "has_evaluation": turn.evaluation is not None,
+                "evaluation_score": turn.evaluation.get("overall_score") if turn.evaluation else None,
+                "created_at": turn.created_at.isoformat() if turn.created_at else None,
+            })
+
+        return {
+            "id": session.id,
+            "title": session.title,
+            "status": session.status,
+            "user_id": session.user_id,
+            "user_email": session.user.email if session.user else None,
+            "current_round": session.current_round,
+            "termination_reason": session.termination_reason,
+            "created_at": session.created_at.isoformat() if session.created_at else None,
+            "updated_at": session.updated_at.isoformat() if session.updated_at else None,
+            "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+            # Token usage summary
+            "usage": {
+                "total_input_tokens": total_input_tokens,
+                "total_output_tokens": total_output_tokens,
+                "total_tokens": total_input_tokens + total_output_tokens,
+                "total_credits": total_credits,
+            },
+            # All turns with token breakdown
+            "turns": turns,
+        }
 
     # ============ Transactions ============
 

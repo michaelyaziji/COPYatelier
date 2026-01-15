@@ -316,6 +316,31 @@ async def get_failed_sessions(
     }
 
 
+@router.get("/sessions/{session_id}")
+@limiter.limit("60/minute")
+async def get_session_detail(
+    request: Request,
+    session_id: str,
+    admin: UserModel = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get detailed session information including all turns with token usage.
+
+    Returns session metadata, token usage summary, and per-turn breakdown
+    showing input/output tokens and credits for each agent turn.
+
+    Admin access required.
+    """
+    repo = AdminRepository(db)
+    session_detail = await repo.get_session_detail(session_id)
+
+    if not session_detail:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    return session_detail
+
+
 @router.post("/sessions/{session_id}/force-reset")
 @limiter.limit("30/minute")
 async def force_reset_session(

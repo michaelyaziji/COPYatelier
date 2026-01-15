@@ -6,7 +6,7 @@ from typing import AsyncIterator, Callable, Optional
 import google.generativeai as genai
 from google.api_core import exceptions as google_exceptions
 
-from .base import AIProvider, ProviderResponse
+from .base import AIProvider, ProviderResponse, StreamingResult
 
 logger = logging.getLogger(__name__)
 
@@ -139,3 +139,60 @@ class GoogleProvider(AIProvider):
                     )
 
         raise last_error
+
+    async def generate_stream_with_usage(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        on_token: Optional[Callable[[str], None]] = None,
+    ) -> StreamingResult:
+        """
+        Stream response from Gemini and capture accurate token usage.
+
+        Gemini provides usage metadata after the stream completes.
+        """
+        generation_config = {
+            "temperature": temperature,
+        }
+        if max_tokens:
+            generation_config["max_output_tokens"] = max_tokens
+
+        gemini_model = genai.GenerativeModel(
+            model_name=model,
+            generation_config=generation_config,
+            system_instruction=system_prompt,
+        )
+
+        content = ""
+        input_tokens = 0
+        output_tokens = 0
+
+        response = await gemini_model.generate_content_async(
+            user_prompt,
+            stream=True
+        )
+
+        async for chunk in response:
+            if chunk.text:
+                content += chunk.text
+                if on_token:
+                    on_token(chunk.text)
+
+        # Get usage metadata from the response after streaming completes
+        # Note: For Gemini streaming, usage_metadata may be on the last chunk or response
+        if hasattr(response, "usage_metadata") and response.usage_metadata:
+            input_tokens = response.usage_metadata.prompt_token_count or 0
+            output_tokens = response.usage_metadata.candidates_token_count or 0
+        else:
+            # Fallback to estimation if metadata not available
+            input_tokens = (len(system_prompt) + len(user_prompt)) // 4
+            output_tokens = len(content) // 4
+
+        return StreamingResult(
+            content=content,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+        )

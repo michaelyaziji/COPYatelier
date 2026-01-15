@@ -435,6 +435,7 @@ async def start_session_stream(
                             phase=phase,
                             tokens_input=turn.tokens_input,
                             tokens_output=turn.tokens_output,
+                            credits_used=turn.credits_used,
                         )
 
                     # Update working document

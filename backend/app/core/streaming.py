@@ -515,23 +515,27 @@ Do NOT rewrite the document. Produce a revision directive only."""
         system_prompt = self._build_system_prompt(agent)
         user_prompt = self._build_agent_prompt(agent, is_first_turn=False)
 
-        # Generate response with real-time token streaming
-        full_response = ""
+        # Generate response with real-time token streaming and accurate usage tracking
         model_name = agent.model.value if hasattr(agent.model, 'value') else agent.model
+        streaming_result = None
+
+        # Token callback that puts events into the queue for real-time streaming
+        # Uses put_nowait since we're in the same event loop
+        def on_token(token: str):
+            event_queue.put_nowait(self._create_event(StreamEventType.AGENT_TOKEN, {
+                "agent_id": agent.agent_id,
+                "token": token,
+            }))
 
         try:
-            async for token in provider.generate_stream(
+            # Use generate_stream_with_usage for accurate token counts
+            streaming_result = await provider.generate_stream_with_usage(
                 system_prompt=system_prompt,
                 user_prompt=user_prompt,
                 model=model_name,
                 temperature=0.7,
-            ):
-                full_response += token
-                # Stream token immediately via queue
-                await event_queue.put(self._create_event(StreamEventType.AGENT_TOKEN, {
-                    "agent_id": agent.agent_id,
-                    "token": token,
-                }))
+                on_token=on_token,
+            )
 
             # Record successful API call
             health_tracker.record_success(agent.provider)
@@ -564,7 +568,8 @@ Do NOT rewrite the document. Produce a revision directive only."""
                 }))
             return result
 
-        # Parse evaluation
+        # Parse evaluation using the content from streaming result
+        full_response = streaming_result.content
         expected_criteria = [c.name for c in agent.evaluation_criteria]
         evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
@@ -575,12 +580,11 @@ Do NOT rewrite the document. Produce a revision directive only."""
         # Get current document (editors don't modify it)
         current_doc = self._get_current_document()
 
-        # Calculate usage
+        # Calculate usage with actual token counts from API
         usage = self._calculate_turn_credits(
             model=model_name,
-            system_prompt=system_prompt,
-            user_prompt=user_prompt,
-            response=full_response,
+            input_tokens=streaming_result.input_tokens,
+            output_tokens=streaming_result.output_tokens,
         )
         result["usage"] = usage
 
@@ -670,29 +674,22 @@ Do NOT rewrite the document. Produce a revision directive only."""
         }
         return f"data: {json.dumps(event_data)}\n\n"
 
-    def _estimate_tokens(self, text: str) -> int:
-        """
-        Estimate token count from text.
-
-        Uses a simple heuristic: ~4 characters per token for English text.
-        This provides a reasonable estimate for credit calculation.
-        """
-        return max(1, len(text) // 4)
-
     def _calculate_turn_credits(
         self,
         model: str,
-        system_prompt: str,
-        user_prompt: str,
-        response: str,
+        input_tokens: int,
+        output_tokens: int,
     ) -> dict:
         """
-        Calculate token usage and credits for a single turn.
+        Calculate credits for a single turn using actual token counts.
+
+        Args:
+            model: Model identifier string
+            input_tokens: Actual input tokens from API response
+            output_tokens: Actual output tokens from API response
 
         Returns dict with input_tokens, output_tokens, and credits_used.
         """
-        input_tokens = self._estimate_tokens(system_prompt + user_prompt)
-        output_tokens = self._estimate_tokens(response)
         credits_used = calculate_credits(model, input_tokens, output_tokens)
 
         return {
@@ -916,24 +913,46 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         system_prompt = self._build_system_prompt(agent)
                         user_prompt = self._build_agent_prompt(agent, is_first_turn)
 
-                        # Stream the response with retry handling at orchestrator level
-                        full_response = ""
+                        # Stream the response with accurate token tracking using queue for real-time
                         model_name = agent.model.value if hasattr(agent.model, 'value') else agent.model
                         stream_success = False
+                        streaming_result = None
 
-                        try:
-                            async for token in provider.generate_stream(
+                        # Queue for real-time token streaming
+                        token_queue: asyncio.Queue = asyncio.Queue()
+                        DONE_SENTINEL = object()
+
+                        async def run_streaming_with_usage():
+                            """Run the streaming call and put tokens in queue."""
+                            def on_token(token: str):
+                                token_queue.put_nowait(token)
+
+                            result = await provider.generate_stream_with_usage(
                                 system_prompt=system_prompt,
                                 user_prompt=user_prompt,
                                 model=model_name,
                                 temperature=0.7,
-                            ):
-                                full_response += token
-                                # Send token event
+                                on_token=on_token,
+                            )
+                            token_queue.put_nowait(DONE_SENTINEL)
+                            return result
+
+                        try:
+                            # Start streaming task
+                            streaming_task = asyncio.create_task(run_streaming_with_usage())
+
+                            # Yield tokens as they arrive
+                            while True:
+                                token = await token_queue.get()
+                                if token is DONE_SENTINEL:
+                                    break
                                 yield self._create_event(StreamEventType.AGENT_TOKEN, {
                                     "agent_id": agent.agent_id,
                                     "token": token,
                                 })
+
+                            # Get the result with accurate usage
+                            streaming_result = await streaming_task
                             stream_success = True
                             # Record successful API call for health tracking
                             health_tracker.record_success(agent.provider)
@@ -976,7 +995,8 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         if not stream_success:
                             continue
 
-                        # Parse evaluation
+                        # Parse evaluation using content from streaming result
+                        full_response = streaming_result.content
                         expected_criteria = [c.name for c in agent.evaluation_criteria]
                         evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
 
@@ -986,12 +1006,11 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         # Update working document (only Writers update it)
                         updated_document = self._update_working_document(agent, output)
 
-                        # Calculate token usage and credits
+                        # Calculate credits with actual token counts from API
                         usage = self._calculate_turn_credits(
                             model=model_name,
-                            system_prompt=system_prompt,
-                            user_prompt=user_prompt,
-                            response=full_response,
+                            input_tokens=streaming_result.input_tokens,
+                            output_tokens=streaming_result.output_tokens,
                         )
                         self.session_credits_used += usage["credits_used"]
                         self.turn_usage_records.append({
@@ -1120,21 +1139,44 @@ Do NOT rewrite the document. Produce a revision directive only."""
                             # Special final pass prompt - uses current round's Synthesizer directive
                             user_prompt = self._build_agent_prompt(writer, is_first_turn=False, is_final_pass=True)
 
-                            full_response = ""
                             model_name = writer.model.value if hasattr(writer.model, 'value') else writer.model
 
-                            try:
-                                async for token in provider.generate_stream(
+                            # Queue for real-time token streaming
+                            final_token_queue: asyncio.Queue = asyncio.Queue()
+                            FINAL_DONE_SENTINEL = object()
+
+                            async def run_final_streaming():
+                                """Run the final streaming call and put tokens in queue."""
+                                def on_token(token: str):
+                                    final_token_queue.put_nowait(token)
+
+                                result = await provider.generate_stream_with_usage(
                                     system_prompt=system_prompt,
                                     user_prompt=user_prompt,
                                     model=model_name,
                                     temperature=0.7,
-                                ):
-                                    full_response += token
+                                    on_token=on_token,
+                                )
+                                final_token_queue.put_nowait(FINAL_DONE_SENTINEL)
+                                return result
+
+                            try:
+                                # Start streaming task
+                                final_streaming_task = asyncio.create_task(run_final_streaming())
+
+                                # Yield tokens as they arrive
+                                while True:
+                                    token = await final_token_queue.get()
+                                    if token is FINAL_DONE_SENTINEL:
+                                        break
                                     yield self._create_event(StreamEventType.AGENT_TOKEN, {
                                         "agent_id": writer.agent_id,
                                         "token": token,
                                     })
+
+                                # Get the result with accurate usage
+                                final_streaming_result = await final_streaming_task
+                                full_response = final_streaming_result.content
 
                                 # Parse and record
                                 expected_criteria = [c.name for c in writer.evaluation_criteria]
@@ -1145,11 +1187,11 @@ Do NOT rewrite the document. Produce a revision directive only."""
 
                                 updated_document = self._update_working_document(writer, output)
 
+                                # Calculate credits with actual token counts
                                 usage = self._calculate_turn_credits(
                                     model=model_name,
-                                    system_prompt=system_prompt,
-                                    user_prompt=user_prompt,
-                                    response=full_response,
+                                    input_tokens=final_streaming_result.input_tokens,
+                                    output_tokens=final_streaming_result.output_tokens,
                                 )
                                 self.session_credits_used += usage["credits_used"]
 

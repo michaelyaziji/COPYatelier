@@ -317,7 +317,12 @@ export default function AdminSessionsPage() {
                     <tr key={session.id} className="hover:bg-zinc-50">
                       <td className="px-6 py-4">
                         <div>
-                          <p className="font-medium text-zinc-900">{session.title}</p>
+                          <Link
+                            href={`/admin/sessions/${session.id}`}
+                            className="font-medium text-zinc-900 hover:text-violet-600"
+                          >
+                            {session.title}
+                          </Link>
                           <p className="text-xs text-zinc-400 font-mono">{session.id.slice(0, 8)}...</p>
                         </div>
                       </td>
