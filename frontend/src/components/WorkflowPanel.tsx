@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check, Play } from 'lucide-react';
+import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check, Play, Zap } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { useSessionStore } from '@/store/session';
+import { useCreditsStore } from '@/store/credits';
 import { WorkflowRoleId, WorkflowRoleState, WORKFLOW_ROLES } from '@/types/workflow';
 import { MODELS, PROVIDERS, ProviderType, ModelType } from '@/types';
 import { clsx } from 'clsx';
@@ -186,6 +187,41 @@ function RoleCard({ role, isExpanded, onToggleExpanded, onToggleRole, onUpdatePr
   );
 }
 
+// Generate section with credit estimate
+function GenerateSection({ onGenerate }: { onGenerate: () => void }) {
+  const { lastEstimate } = useCreditsStore();
+
+  return (
+    <div className="flex items-center justify-between pt-4 border-t border-zinc-100 mt-6">
+      {/* Credit Estimate */}
+      <div className="flex items-center gap-2 text-sm">
+        <Zap className="h-4 w-4 text-amber-500" />
+        <span className="text-zinc-600">
+          Estimated credit usage:{' '}
+          <span className="font-semibold text-zinc-900">
+            {lastEstimate?.estimated_credits ?? '—'}
+          </span>
+          {lastEstimate && (
+            <span className="text-zinc-400 ml-1">
+              (you have {lastEstimate.current_balance})
+            </span>
+          )}
+        </span>
+      </div>
+
+      {/* Generate Button */}
+      <Button
+        size="lg"
+        onClick={onGenerate}
+        className="gap-2"
+      >
+        <Play className="h-4 w-4" />
+        Generate
+      </Button>
+    </div>
+  );
+}
+
 interface WorkflowPanelProps {
   onGenerate?: () => void;
 }
@@ -339,18 +375,9 @@ export function WorkflowPanel({ onGenerate }: WorkflowPanelProps) {
         </p>
       </div>
 
-      {/* Generate Button */}
+      {/* Generate Button with Credit Estimate */}
       {onGenerate && (
-        <div className="flex justify-end pt-4">
-          <Button
-            size="lg"
-            onClick={onGenerate}
-            className="gap-2"
-          >
-            <Play className="h-4 w-4" />
-            Generate
-          </Button>
-        </div>
+        <GenerateSection onGenerate={onGenerate} />
       )}
     </div>
   );
