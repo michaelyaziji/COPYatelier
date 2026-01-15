@@ -75,35 +75,58 @@ def estimate_session_credits(
     """
     Estimate total credits for a session before it starts.
 
-    This provides a conservative (high) estimate assuming all rounds complete.
-    Uses average token estimates based on document size and typical response lengths.
+    With optimized context (each role receives only what it needs):
+    - Writer: current draft + Synthesizer directive (~400 base + document)
+    - Editors: current draft only (~300 base + document)
+    - Synthesizer: current draft + editor feedback (~300 base + document + feedback)
+
+    Token usage is now O(n) linear with turns, not O(n²) with history accumulation.
 
     Args:
-        agents: List of agent configs (dicts with 'model' key)
+        agents: List of agent configs (dicts with 'model' key and 'phase' key)
         max_rounds: Maximum number of rounds configured
         document_words: Word count of the working document
 
     Returns:
         Estimated credits for the session
     """
-    # Estimate tokens per agent turn
-    # Base: 500 tokens for prompt overhead + 1.5 tokens per word of document
-    # Plus estimated response: ~1000 tokens for output + evaluation
-    avg_input_tokens_per_turn = 500 + int(document_words * 1.5)
-    avg_output_tokens_per_turn = 1000
+    # Document tokens: ~1.5 tokens per word
+    document_tokens = int(document_words * 1.5)
+
+    # Count agents by phase for more accurate estimates
+    num_editors = sum(1 for a in agents if a.get("phase", 2) == 2)
 
     total_estimate = 0
 
     for agent in agents:
         model = agent.get("model", "claude-sonnet-4-5-20250929")
         multiplier = MODEL_CREDIT_MULTIPLIERS.get(model, 1.0)
+        phase = agent.get("phase", 2)
 
-        # Each agent runs once per round
-        tokens_per_turn = avg_input_tokens_per_turn + avg_output_tokens_per_turn
+        # Estimate input tokens based on role
+        if phase == 1:  # Writer
+            # Task + refs + current doc + synthesizer directive + eval format
+            base_overhead = 500
+            input_tokens = base_overhead + document_tokens
+        elif phase == 2:  # Editors
+            # Current doc + instructions + eval format (minimal context)
+            base_overhead = 300
+            input_tokens = base_overhead + document_tokens
+        else:  # Synthesizer
+            # Current doc + all editor feedback + eval format
+            base_overhead = 300
+            editor_feedback_tokens = num_editors * 800  # ~800 tokens per editor
+            input_tokens = base_overhead + document_tokens + editor_feedback_tokens
+
+        # Output tokens: ~1000 for response + evaluation JSON
+        output_tokens = 1000
+
+        tokens_per_turn = input_tokens + output_tokens
         credits_per_turn = (tokens_per_turn / BASE_TOKENS_PER_CREDIT) * multiplier
 
-        # Agent runs max_rounds times
-        total_estimate += credits_per_turn * max_rounds
+        # Agent runs max_rounds times (plus final Writer pass)
+        runs = max_rounds + 1 if phase == 1 else max_rounds
+        total_estimate += credits_per_turn * runs
 
     return math.ceil(total_estimate)
 
