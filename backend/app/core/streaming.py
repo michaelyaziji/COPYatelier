@@ -242,6 +242,9 @@ class StreamingOrchestrator:
 
             prompt_parts.append("=== YOUR TASK ===\n")
             prompt_parts.append(self.state.config.initial_prompt)
+            prompt_parts.append("\n\nIMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.")
+            prompt_parts.append("\nDo NOT describe what you're going to write - actually write it.")
+            prompt_parts.append("\nOUTPUT: The complete document text.")
         else:
             # Round 2+ or final pass: Current draft + Synthesizer's directive only
             prompt_parts.append("=== ORIGINAL TASK ===\n")
