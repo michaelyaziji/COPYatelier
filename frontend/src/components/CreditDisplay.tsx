@@ -8,11 +8,10 @@ import { clsx } from 'clsx';
 
 interface CreditDisplayProps {
   className?: string;
-  showEstimate?: boolean;
 }
 
-export function CreditDisplay({ className, showEstimate = false }: CreditDisplayProps) {
-  const { balance, isLoading, fetchBalance, lastEstimate } = useCreditsStore();
+export function CreditDisplay({ className }: CreditDisplayProps) {
+  const { balance, isLoading, fetchBalance } = useCreditsStore();
 
   // Fetch balance on mount
   useEffect(() => {
@@ -35,67 +34,48 @@ export function CreditDisplay({ className, showEstimate = false }: CreditDisplay
   // Determine status color
   const isLow = balance.balance < 5;
   const isWarning = balance.balance < 10;
-  const hasInsufficientCredits = lastEstimate && !lastEstimate.has_sufficient_credits;
 
   return (
     <Link
       href="/pricing"
       className={clsx(
-        'flex flex-col px-3 py-1.5 rounded-full border transition-all hover:shadow-sm',
-        hasInsufficientCredits
+        'flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all hover:shadow-sm',
+        isLow
           ? 'bg-red-50 border-red-200'
-          : isLow
-            ? 'bg-red-50 border-red-200'
-            : isWarning
-              ? 'bg-amber-50 border-amber-200'
-              : 'bg-violet-50 border-violet-200',
+          : isWarning
+            ? 'bg-amber-50 border-amber-200'
+            : 'bg-violet-50 border-violet-200',
         className
       )}
       title="View pricing and credits"
     >
-      {/* Balance row */}
-      <div className="flex items-center gap-1.5">
-        {hasInsufficientCredits || isLow ? (
-          <AlertCircle className="h-3.5 w-3.5 text-red-500" />
-        ) : isWarning ? (
-          <TrendingDown className="h-3.5 w-3.5 text-amber-600" />
-        ) : (
-          <Coins className="h-3.5 w-3.5 text-violet-600" />
-        )}
-        <span className={clsx(
-          'text-sm font-semibold',
-          hasInsufficientCredits || isLow
-            ? 'text-red-700'
-            : isWarning
-              ? 'text-amber-700'
-              : 'text-violet-700'
-        )}>
-          {balance.balance}
-        </span>
-        <span className={clsx(
-          'text-xs',
-          hasInsufficientCredits || isLow
-            ? 'text-red-600'
-            : isWarning
-              ? 'text-amber-600'
-              : 'text-violet-600'
-        )}>
-          credits
-        </span>
-      </div>
-
-      {/* Estimate row - only show during setup steps */}
-      {showEstimate && lastEstimate && (
-        <div className={clsx(
-          'text-xs leading-tight',
-          hasInsufficientCredits
-            ? 'text-red-600'
-            : 'text-violet-500'
-        )}>
-          Project est: {lastEstimate.estimated_credits}
-          {hasInsufficientCredits && ' (need more)'}
-        </div>
+      {isLow ? (
+        <AlertCircle className="h-3.5 w-3.5 text-red-500" />
+      ) : isWarning ? (
+        <TrendingDown className="h-3.5 w-3.5 text-amber-600" />
+      ) : (
+        <Coins className="h-3.5 w-3.5 text-violet-600" />
       )}
+      <span className={clsx(
+        'text-sm font-semibold',
+        isLow
+          ? 'text-red-700'
+          : isWarning
+            ? 'text-amber-700'
+            : 'text-violet-700'
+      )}>
+        {balance.balance}
+      </span>
+      <span className={clsx(
+        'text-xs',
+        isLow
+          ? 'text-red-600'
+          : isWarning
+            ? 'text-amber-600'
+            : 'text-violet-600'
+      )}>
+        credits
+      </span>
     </Link>
   );
 }

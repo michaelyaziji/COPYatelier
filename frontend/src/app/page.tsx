@@ -258,8 +258,8 @@ export default function Home() {
 
                 {/* Auth + Credits */}
                 <div className="flex items-center gap-3">
-                  {/* Credit Balance Display with estimate on setup steps */}
-                  <CreditDisplay showEstimate={currentStep === 1 || currentStep === 2} />
+                  {/* Credit Balance Display */}
+                  <CreditDisplay />
                   {/* Feedback Button */}
                   <FeedbackWidget variant="header" />
                   <UserButton

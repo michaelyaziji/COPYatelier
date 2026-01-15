@@ -1,13 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check, Play, Zap } from 'lucide-react';
+import { PenLine, BookOpen, Sparkles, Search, Layers, ChevronDown, ChevronUp, Check, Play } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Select } from '@/components/ui/select';
 import { useSessionStore } from '@/store/session';
-import { useCreditsStore } from '@/store/credits';
 import { WorkflowRoleId, WorkflowRoleState, WORKFLOW_ROLES } from '@/types/workflow';
 import { MODELS, PROVIDERS, ProviderType, ModelType } from '@/types';
 import { clsx } from 'clsx';
@@ -187,25 +186,10 @@ function RoleCard({ role, isExpanded, onToggleExpanded, onToggleRole, onUpdatePr
   );
 }
 
-// Generate section with credit estimate
+// Generate section
 function GenerateSection({ onGenerate }: { onGenerate: () => void }) {
-  const { lastEstimate } = useCreditsStore();
-
   return (
-    <div className="flex items-center justify-end gap-4 pt-4">
-      {/* Credit Estimate */}
-      {lastEstimate && (
-        <div className="flex items-center gap-2 text-sm text-zinc-600">
-          <Zap className="h-4 w-4 text-amber-500" />
-          <span>
-            Estimated credits for this generation: <span className="font-semibold text-zinc-900">{lastEstimate.estimated_credits}</span>
-            <span className="mx-1.5 text-zinc-300">|</span>
-            Your balance: <span className="font-semibold text-zinc-900">{lastEstimate.current_balance}</span>
-          </span>
-        </div>
-      )}
-
-      {/* Generate Button */}
+    <div className="flex items-center justify-end pt-4">
       <Button
         size="lg"
         onClick={onGenerate}

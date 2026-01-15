@@ -13,7 +13,7 @@ import { useState, useEffect, useRef } from 'react';
 
 export function ResultsView() {
   const { sessionState, isRunning, isStreaming, error, reset, stopSession, resetSession, createAndStartStreamingSession, initialPrompt, workflowRoles } = useSessionStore();
-  const { lastEstimate, refreshBalance } = useCreditsStore();
+  const { refreshBalance } = useCreditsStore();
   const [copied, setCopied] = useState(false);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [emailAddress, setEmailAddress] = useState('');
@@ -263,7 +263,7 @@ export function ResultsView() {
   }
 
   const activeRoles = workflowRoles.filter((r) => r.isActive);
-  const canStart = initialPrompt.trim().length > 0 && activeRoles.length > 0 && (!lastEstimate || lastEstimate.has_sufficient_credits);
+  const canStart = initialPrompt.trim().length > 0 && activeRoles.length > 0;
 
   const handleStartWriting = async () => {
     await createAndStartStreamingSession();
@@ -285,9 +285,6 @@ export function ResultsView() {
           {!canStart && !initialPrompt.trim() && (
             <p className="text-amber-600 text-sm mb-4">Please add a writing prompt in Step 1 first.</p>
           )}
-          {!canStart && lastEstimate && !lastEstimate.has_sufficient_credits && (
-            <p className="text-amber-600 text-sm mb-4">Insufficient credits. Please add more credits to continue.</p>
-          )}
 
           <Button
             onClick={handleStartWriting}
@@ -299,11 +296,6 @@ export function ResultsView() {
             Start Writing
           </Button>
 
-          {lastEstimate && (
-            <p className="text-xs text-zinc-400 mt-4">
-              Estimated cost: {lastEstimate.estimated_credits} credits
-            </p>
-          )}
         </CardContent>
       </Card>
     );
