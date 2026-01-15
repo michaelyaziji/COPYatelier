@@ -172,7 +172,8 @@ class HealthCheckService:
     - Google: gemini-2.0-flash
     """
 
-    PING_INTERVAL = 60  # seconds
+    PING_INTERVAL = 60  # seconds (default for most providers)
+    PERPLEXITY_PING_INTERVAL = 900  # 15 minutes for Perplexity
     PING_PROMPT = "Respond with only the word OK"
 
     # Cheapest models for health checks
@@ -187,6 +188,7 @@ class HealthCheckService:
         self._running = False
         self._task: Optional[asyncio.Task] = None
         self._providers: dict = {}
+        self._last_perplexity_ping: float = 0  # Track last Perplexity ping time
 
     async def start(self, settings) -> None:
         """Start the background health check service."""
@@ -247,9 +249,18 @@ class HealthCheckService:
 
     async def _ping_all_providers(self) -> None:
         """Ping all configured providers concurrently."""
+        import time
+        current_time = time.time()
         tasks = []
+
         for provider_type, provider in self._providers.items():
-            tasks.append(self._ping_provider(provider_type, provider))
+            # Perplexity has a longer interval (15 minutes)
+            if provider_type == ProviderType.PERPLEXITY:
+                if current_time - self._last_perplexity_ping >= self.PERPLEXITY_PING_INTERVAL:
+                    tasks.append(self._ping_provider(provider_type, provider))
+                    self._last_perplexity_ping = current_time
+            else:
+                tasks.append(self._ping_provider(provider_type, provider))
 
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
