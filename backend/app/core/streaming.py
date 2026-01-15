@@ -459,21 +459,21 @@ Do NOT rewrite the document. Produce a revision directive only."""
                 phases[2].append(agent)  # Unknown phase defaults to editor
         return phases
 
-    async def _run_single_editor(
+    async def _run_single_editor_streaming(
         self,
         agent: AgentConfig,
         turn_number: int,
+        event_queue: asyncio.Queue,
     ) -> dict:
         """
-        Run a single editor agent and return all results.
+        Run a single editor agent with real-time streaming via queue.
 
         Used for parallel execution of Phase 2 editors.
-        Returns a dict with events, turn data, and success status.
+        Puts events into the queue as they occur for real-time streaming.
+        Returns a dict with turn data and success status.
         """
-        events = []
         result = {
             "success": False,
-            "events": events,
             "turn": None,
             "usage": None,
             "agent_id": agent.agent_id,
@@ -481,7 +481,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
         }
 
         # Agent start event
-        events.append(self._create_event(StreamEventType.AGENT_START, {
+        await event_queue.put(self._create_event(StreamEventType.AGENT_START, {
             "agent_id": agent.agent_id,
             "agent_name": agent.display_name,
             "turn_number": turn_number,
@@ -493,7 +493,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
         # Get provider
         provider = self.providers.get(agent.provider)
         if not provider:
-            events.append(self._create_event(StreamEventType.ERROR, {
+            await event_queue.put(self._create_event(StreamEventType.ERROR, {
                 "message": f"Provider {agent.provider} not configured"
             }))
             return result
@@ -502,10 +502,9 @@ Do NOT rewrite the document. Produce a revision directive only."""
         system_prompt = self._build_system_prompt(agent)
         user_prompt = self._build_agent_prompt(agent, is_first_turn=False)
 
-        # Generate response (collect tokens, don't stream individually during parallel)
+        # Generate response with real-time token streaming
         full_response = ""
         model_name = agent.model.value if hasattr(agent.model, 'value') else agent.model
-        tokens_for_streaming = []
 
         try:
             async for token in provider.generate_stream(
@@ -515,7 +514,11 @@ Do NOT rewrite the document. Produce a revision directive only."""
                 temperature=0.7,
             ):
                 full_response += token
-                tokens_for_streaming.append(token)
+                # Stream token immediately via queue
+                await event_queue.put(self._create_event(StreamEventType.AGENT_TOKEN, {
+                    "agent_id": agent.agent_id,
+                    "token": token,
+                }))
 
             # Record successful API call
             health_tracker.record_success(agent.provider)
@@ -535,25 +538,18 @@ Do NOT rewrite the document. Produce a revision directive only."""
                     alt_suggestion = "Claude or GPT-4o"
 
                 logger.error(f"Error streaming from {agent.display_name} (overloaded): {e}")
-                events.append(self._create_event(StreamEventType.ERROR, {
+                await event_queue.put(self._create_event(StreamEventType.ERROR, {
                     "agent_id": agent.agent_id,
                     "message": f"The AI service is currently overloaded. Please wait a moment and try again, or switch to a different model (e.g., {alt_suggestion}).",
                     "error_type": "overload",
                 }))
             else:
                 logger.error(f"Error streaming from {agent.display_name}: {e}")
-                events.append(self._create_event(StreamEventType.ERROR, {
+                await event_queue.put(self._create_event(StreamEventType.ERROR, {
                     "agent_id": agent.agent_id,
                     "message": str(e),
                 }))
             return result
-
-        # Add token events (will be yielded in batch after parallel completion)
-        for token in tokens_for_streaming:
-            events.append(self._create_event(StreamEventType.AGENT_TOKEN, {
-                "agent_id": agent.agent_id,
-                "token": token,
-            }))
 
         # Parse evaluation
         expected_criteria = [c.name for c in agent.evaluation_criteria]
@@ -594,7 +590,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
         result["turn"] = turn
 
         # Agent complete event
-        events.append(self._create_event(StreamEventType.AGENT_COMPLETE, {
+        await event_queue.put(self._create_event(StreamEventType.AGENT_COMPLETE, {
             "agent_id": agent.agent_id,
             "agent_name": agent.display_name,
             "turn_number": turn_number,
@@ -755,7 +751,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         self.state.termination_reason = "Stopped by user"
                         break
 
-                    # PHASE 2: Run editors in PARALLEL
+                    # PHASE 2: Run editors in PARALLEL with real-time streaming
                     if phase_num == 2 and phases[2]:
                         # Check credits before starting parallel editors
                         if self.initial_balance is not None:
@@ -779,24 +775,52 @@ Do NOT rewrite the document. Produce a revision directive only."""
                             turn_number += 1
                             editor_turn_numbers[agent.agent_id] = turn_number
 
-                        # Run all editors in parallel
-                        logger.info(f"Running {len(phases[2])} editors in parallel")
+                        # Create event queue for real-time streaming from parallel editors
+                        event_queue: asyncio.Queue = asyncio.Queue()
+
+                        # Run all editors in parallel with streaming
+                        logger.info(f"Running {len(phases[2])} editors in parallel with streaming")
                         editor_tasks = [
-                            self._run_single_editor(agent, editor_turn_numbers[agent.agent_id])
+                            self._run_single_editor_streaming(agent, editor_turn_numbers[agent.agent_id], event_queue)
                             for agent in phases[2]
                         ]
-                        editor_results = await asyncio.gather(*editor_tasks, return_exceptions=True)
 
-                        # Process results and yield events
+                        # Start all editor tasks
+                        tasks = [asyncio.create_task(task) for task in editor_tasks]
+
+                        # Stream events from queue while editors are running
+                        completed_count = 0
+                        total_editors = len(phases[2])
+
+                        while completed_count < total_editors:
+                            # Check if any tasks completed
+                            for task in tasks:
+                                if task.done() and not hasattr(task, '_counted'):
+                                    task._counted = True
+                                    completed_count += 1
+
+                            # Try to get events from queue (non-blocking with small timeout)
+                            try:
+                                event = await asyncio.wait_for(event_queue.get(), timeout=0.05)
+                                yield event
+                            except asyncio.TimeoutError:
+                                # No event ready, continue checking tasks
+                                await asyncio.sleep(0.01)
+
+                        # Drain any remaining events from queue
+                        while not event_queue.empty():
+                            event = await event_queue.get()
+                            yield event
+
+                        # Collect results from completed tasks
+                        editor_results = [task.result() for task in tasks]
+
+                        # Process results
                         editor_feedback_parts = []
                         for result in editor_results:
                             if isinstance(result, Exception):
                                 logger.error(f"Editor task failed: {result}")
                                 continue
-
-                            # Yield all events from this editor
-                            for event in result.get("events", []):
-                                yield event
 
                             # Add turn to exchange history
                             if result.get("turn"):
