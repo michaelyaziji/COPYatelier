@@ -194,16 +194,16 @@ function GenerateSection({ onGenerate }: { onGenerate: () => void }) {
   return (
     <div className="flex items-center justify-end gap-4 pt-4">
       {/* Credit Estimate */}
-      <div className="flex items-center gap-2 text-sm">
-        <Zap className="h-4 w-4 text-amber-500" />
-        <span className="text-zinc-600">
-          Estimated:{' '}
-          <span className="font-semibold text-zinc-900">
-            {lastEstimate?.estimated_credits ?? '—'}
+      {lastEstimate && (
+        <div className="flex items-center gap-2 text-sm text-zinc-600">
+          <Zap className="h-4 w-4 text-amber-500" />
+          <span>
+            Estimated credits for this generation: <span className="font-semibold text-zinc-900">{lastEstimate.estimated_credits}</span>
+            <span className="mx-1.5 text-zinc-300">|</span>
+            Your balance: <span className="font-semibold text-zinc-900">{lastEstimate.current_balance}</span>
           </span>
-          {' '}credits
-        </span>
-      </div>
+        </div>
+      )}
 
       {/* Generate Button */}
       <Button
