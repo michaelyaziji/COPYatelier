@@ -192,20 +192,16 @@ function GenerateSection({ onGenerate }: { onGenerate: () => void }) {
   const { lastEstimate } = useCreditsStore();
 
   return (
-    <div className="flex items-center justify-between pt-4 border-t border-zinc-100 mt-6">
+    <div className="flex items-center justify-end gap-4 pt-4">
       {/* Credit Estimate */}
       <div className="flex items-center gap-2 text-sm">
         <Zap className="h-4 w-4 text-amber-500" />
         <span className="text-zinc-600">
-          Estimated credit usage:{' '}
+          Estimated:{' '}
           <span className="font-semibold text-zinc-900">
             {lastEstimate?.estimated_credits ?? '—'}
           </span>
-          {lastEstimate && (
-            <span className="text-zinc-400 ml-1">
-              (you have {lastEstimate.current_balance})
-            </span>
-          )}
+          {' '}credits
         </span>
       </div>
 
