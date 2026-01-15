@@ -293,10 +293,15 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
         return "".join(prompt_parts)
 
     def _build_editor_prompt(self, agent: AgentConfig) -> str:
-        """Build prompt for Editors with minimal context (current draft only)."""
+        """Build prompt for Editors with current draft and original task context."""
         prompt_parts = []
 
-        # Editors only see the current draft - no history
+        # Original task so editors understand the intent/requirements
+        prompt_parts.append("=== ORIGINAL TASK ===\n")
+        prompt_parts.append("(The user's original request - use this to understand the intent:)\n\n")
+        prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
+
+        # Current draft to review
         current_doc = self._get_current_document()
         if current_doc:
             prompt_parts.append("=== WORKING DOCUMENT ===\n")
@@ -314,6 +319,11 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
     def _build_synthesizer_prompt(self, agent: AgentConfig) -> str:
         """Build prompt for Synthesizer with current draft + this round's editor feedback."""
         prompt_parts = []
+
+        # Original task so synthesizer understands the intent
+        prompt_parts.append("=== ORIGINAL TASK ===\n")
+        prompt_parts.append("(The user's original request - use this to prioritize feedback:)\n\n")
+        prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
 
         # Current document
         current_doc = self._get_current_document()
