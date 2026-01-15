@@ -534,6 +534,33 @@ class ApiClient {
     return this.request(`/admin/sessions/failed?days=${days}`);
   }
 
+  async getStuckSessions(hours: number = 2): Promise<{
+    sessions: Array<{
+      id: string;
+      user_id: string;
+      title: string;
+      status: string;
+      created_at: string;
+      updated_at: string;
+      hours_running: number;
+    }>;
+    count: number;
+    threshold_hours: number;
+  }> {
+    return this.request(`/admin/sessions/stuck?hours=${hours}`);
+  }
+
+  async forceResetSession(sessionId: string): Promise<{
+    session_id: string;
+    previous_status: string;
+    new_status: string;
+    message: string;
+  }> {
+    return this.request(`/admin/sessions/${sessionId}/force-reset`, {
+      method: 'POST',
+    });
+  }
+
   // Admin - Transactions
   async listAdminTransactions(params?: {
     limit?: number;

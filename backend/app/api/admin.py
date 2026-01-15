@@ -316,6 +316,110 @@ async def get_failed_sessions(
     }
 
 
+@router.post("/sessions/{session_id}/force-reset")
+@limiter.limit("30/minute")
+async def force_reset_session(
+    request: Request,
+    session_id: str,
+    admin: UserModel = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Force reset a stuck session (admin only).
+
+    This allows admins to reset sessions that appear stuck in "running" status
+    for any user. Use this for sessions that have been running for hours
+    without progress.
+
+    Admin access required.
+    """
+    from ..db.repository import SessionRepository
+    from .routes import active_sessions
+
+    repo = SessionRepository(db)
+    db_session = await repo.get(session_id)
+
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    old_status = db_session.status
+
+    # Remove from active sessions cache
+    if session_id in active_sessions:
+        del active_sessions[session_id]
+
+    # Reset status to stopped (not draft, to preserve any work done)
+    await repo.update_status(
+        session_id,
+        "stopped",
+        termination_reason=f"Force reset by admin ({admin.email})"
+    )
+
+    logger.info(
+        f"Admin {admin.email} force-reset session {session_id} "
+        f"(was: {old_status}, owner: {db_session.user_id})"
+    )
+
+    return {
+        "session_id": session_id,
+        "previous_status": old_status,
+        "new_status": "stopped",
+        "message": "Session force-reset by admin.",
+    }
+
+
+@router.get("/sessions/stuck")
+@limiter.limit("60/minute")
+async def get_stuck_sessions(
+    request: Request,
+    hours: int = Query(default=2, ge=1, le=48),
+    admin: UserModel = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get sessions that have been "running" for longer than expected.
+
+    Args:
+        hours: Consider sessions stuck if running longer than this (default: 2)
+
+    Admin access required.
+    """
+    from datetime import datetime, timezone, timedelta
+    from sqlalchemy import select, and_
+    from ..db.models import SessionModel
+
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
+
+    result = await db.execute(
+        select(SessionModel)
+        .where(
+            and_(
+                SessionModel.status == "running",
+                SessionModel.updated_at < cutoff
+            )
+        )
+        .order_by(SessionModel.updated_at.asc())
+    )
+    sessions = result.scalars().all()
+
+    return {
+        "sessions": [
+            {
+                "id": s.id,
+                "user_id": s.user_id,
+                "title": s.title,
+                "status": s.status,
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "updated_at": s.updated_at.isoformat() if s.updated_at else None,
+                "hours_running": round((datetime.now(timezone.utc) - s.updated_at).total_seconds() / 3600, 1) if s.updated_at else None,
+            }
+            for s in sessions
+        ],
+        "count": len(sessions),
+        "threshold_hours": hours,
+    }
+
+
 # ============ Transaction Endpoints ============
 
 

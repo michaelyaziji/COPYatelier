@@ -28,9 +28,17 @@ export default function AdminSessionsPage() {
 
   const [sessions, setSessions] = useState<AdminSession[]>([]);
   const [failedSessions, setFailedSessions] = useState<AdminSession[]>([]);
+  const [stuckSessions, setStuckSessions] = useState<Array<{
+    id: string;
+    user_id: string;
+    title: string;
+    status: string;
+    hours_running: number;
+  }>>([]);
   const [total, setTotal] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [resettingSession, setResettingSession] = useState<string | null>(null);
 
   // Filters
   const [status, setStatus] = useState(searchParams.get('status') || '');
@@ -69,9 +77,36 @@ export default function AdminSessionsPage() {
     }
   };
 
+  const fetchStuckSessions = async () => {
+    try {
+      const data = await api.getStuckSessions(2);
+      setStuckSessions(data.sessions);
+    } catch (err) {
+      console.error('Failed to fetch stuck sessions:', err);
+    }
+  };
+
+  const handleForceReset = async (sessionId: string) => {
+    if (!confirm('Are you sure you want to force reset this session? This will stop it and preserve any completed work.')) return;
+
+    setResettingSession(sessionId);
+    try {
+      await api.forceResetSession(sessionId);
+      // Remove from stuck sessions list
+      setStuckSessions(prev => prev.filter(s => s.id !== sessionId));
+      // Refresh main sessions list
+      fetchSessions();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Failed to reset session');
+    } finally {
+      setResettingSession(null);
+    }
+  };
+
   useEffect(() => {
     fetchSessions();
     fetchFailedSessions();
+    fetchStuckSessions();
   }, [fetchSessions]);
 
   useEffect(() => {
@@ -124,11 +159,52 @@ export default function AdminSessionsPage() {
           <h1 className="text-2xl font-bold text-zinc-900">Sessions</h1>
           <p className="text-zinc-500 mt-1">Monitor all orchestration sessions</p>
         </div>
-        <Button onClick={() => { fetchSessions(); fetchFailedSessions(); }} variant="outline">
+        <Button onClick={() => { fetchSessions(); fetchFailedSessions(); fetchStuckSessions(); }} variant="outline">
           <RefreshCw className="h-4 w-4 mr-2" />
           Refresh
         </Button>
       </div>
+
+      {/* Stuck Sessions Alert */}
+      {stuckSessions.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <Clock className="h-5 w-5 text-amber-500" />
+              <div>
+                <p className="font-medium text-amber-700">
+                  {stuckSessions.length} stuck session{stuckSessions.length > 1 ? 's' : ''} (running &gt; 2 hours)
+                </p>
+                <p className="text-sm text-amber-600">These sessions may need to be force reset</p>
+              </div>
+            </div>
+          </div>
+          <div className="space-y-2">
+            {stuckSessions.map((session) => (
+              <div key={session.id} className="flex items-center justify-between bg-white rounded-lg p-3 border border-amber-100">
+                <div>
+                  <p className="font-medium text-zinc-900 text-sm">{session.title || 'Untitled'}</p>
+                  <p className="text-xs text-zinc-500">
+                    Running for {session.hours_running.toFixed(1)} hours &bull; ID: {session.id.slice(0, 8)}...
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => handleForceReset(session.id)}
+                  disabled={resettingSession === session.id}
+                >
+                  {resettingSession === session.id ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    'Force Reset'
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Failed Sessions Alert */}
       {failedSessions.length > 0 && !showFailedPanel && (
