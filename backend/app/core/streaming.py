@@ -172,6 +172,7 @@ class StreamingOrchestrator:
         self.turn_usage_records: list[dict] = []  # Records per-turn usage
         self.initial_balance = initial_balance  # User's balance at session start
         self._credit_warning_sent = False  # Track if we've sent a low credit warning
+        self._current_round_editor_feedback = ""  # Stores editor feedback for Synthesizer
 
     def _initialize_providers(self) -> dict[ProviderType, AIProvider]:
         """Initialize AI providers based on configured API keys."""
@@ -199,60 +200,169 @@ class StreamingOrchestrator:
 
         return providers
 
-    def _build_agent_prompt(self, agent: AgentConfig, is_first_turn: bool) -> str:
-        """Build the complete prompt for an agent."""
+    def _build_agent_prompt(self, agent: AgentConfig, is_first_turn: bool, is_final_pass: bool = False) -> str:
+        """
+        Build the complete prompt for an agent with optimized context.
+
+        Each role receives only the context it needs:
+        - Writer (Round 1): User prompt + reference materials
+        - Writer (Round 2+): Current draft + Synthesizer's directive
+        - Editors: Current draft only (no history)
+        - Synthesizer: Current draft + this round's editor feedback
+
+        Args:
+            agent: The agent configuration
+            is_first_turn: Whether this is the first turn of the session
+            is_final_pass: Whether this is the final Writer pass after termination
+        """
+        if agent.phase == 1:  # Writer
+            return self._build_writer_prompt(agent, is_first_turn, is_final_pass)
+        elif agent.phase == 2:  # Editors
+            return self._build_editor_prompt(agent)
+        elif agent.phase == 3:  # Synthesizer
+            return self._build_synthesizer_prompt(agent)
+        else:
+            # Fallback to editor behavior
+            return self._build_editor_prompt(agent)
+
+    def _build_writer_prompt(self, agent: AgentConfig, is_first_turn: bool, is_final_pass: bool = False) -> str:
+        """Build prompt for Writer with minimal context."""
         prompt_parts = []
 
-        # 1. Original task/requirements (so all agents know what user asked for)
-        if not is_first_turn:
+        if is_first_turn:
+            # Round 1: User prompt + reference materials
+            if self.state.config.reference_documents:
+                prompt_parts.append("=== REFERENCE MATERIALS ===\n")
+                prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
+                if self.state.config.reference_instructions:
+                    prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
+                for filename, content in self.state.config.reference_documents.items():
+                    prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
+                prompt_parts.append("\n")
+
+            prompt_parts.append("=== YOUR TASK ===\n")
+            prompt_parts.append(self.state.config.initial_prompt)
+        else:
+            # Round 2+ or final pass: Current draft + Synthesizer's directive only
             prompt_parts.append("=== ORIGINAL TASK ===\n")
-            prompt_parts.append("(The user's original request and requirements:)\n\n")
+            prompt_parts.append("(The user's original request:)\n\n")
             prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
 
-        # 2. Reference materials (supporting documents - NOT what we're editing)
-        if self.state.config.reference_documents:
-            prompt_parts.append("=== REFERENCE MATERIALS ===\n")
-            prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
-            # Include user instructions about how to use the reference documents
-            if self.state.config.reference_instructions:
-                prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
-            for filename, content in self.state.config.reference_documents.items():
-                prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
-            prompt_parts.append("\n")
+            # Include reference materials for context
+            if self.state.config.reference_documents:
+                prompt_parts.append("=== REFERENCE MATERIALS ===\n")
+                prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
+                if self.state.config.reference_instructions:
+                    prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
+                for filename, content in self.state.config.reference_documents.items():
+                    prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
+                prompt_parts.append("\n")
 
-        # 2. Exchange history (if not first turn)
-        if self.state.exchange_history:
-            prompt_parts.append("=== EXCHANGE HISTORY ===\n")
-            for turn in self.state.exchange_history:
-                prompt_parts.append(f"\n[Round {turn.round_number}, Turn {turn.turn_number}] {turn.agent_name}:\n")
-                prompt_parts.append(f"{turn.output}\n")
+            current_doc = self._get_current_document()
+            if current_doc:
+                prompt_parts.append("=== WORKING DOCUMENT ===\n")
+                prompt_parts.append("(This is the current draft you are revising.)\n\n")
+                prompt_parts.append(f"{current_doc}\n\n")
 
-                if turn.evaluation:
-                    prompt_parts.append(f"\nEvaluation (Overall: {turn.evaluation.overall_score:.1f}/10):\n")
-                    for cs in turn.evaluation.criteria_scores:
-                        prompt_parts.append(f"  - {cs.criterion}: {cs.score}/10 - {cs.justification}\n")
-            prompt_parts.append("\n")
+            # For final pass: use current round's directive
+            # For normal rounds: use previous round's directive
+            directive_round = self.state.current_round if is_final_pass else self.state.current_round - 1
+            synthesizer_directive = self._get_synthesizer_directive(directive_round)
+            prompt_parts.append("=== YOUR TASK ===\n")
+            prompt_parts.append(f"""Revise your draft based on the Synthesizing Editor's directive below.
 
-        # 3. Current working document (THE document being created/edited)
+=== REVISION DIRECTIVE ===
+{synthesizer_directive}
+===========================
+
+IMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.
+
+Instructions:
+- Read the revision directive carefully
+- Incorporate the feedback by default, unless you feel strongly it would harm the work
+- Preserve what works
+
+OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feedback - output the actual text of the document.""")
+
+        # Add evaluation format
+        prompt_parts.append(self._get_evaluation_format(agent, is_writer=True))
+
+        return "".join(prompt_parts)
+
+    def _build_editor_prompt(self, agent: AgentConfig) -> str:
+        """Build prompt for Editors with minimal context (current draft only)."""
+        prompt_parts = []
+
+        # Editors only see the current draft - no history
         current_doc = self._get_current_document()
         if current_doc:
             prompt_parts.append("=== WORKING DOCUMENT ===\n")
-            prompt_parts.append("(This is the central document you are writing/editing.)\n\n")
-            prompt_parts.append(f"{current_doc}\n")
+            prompt_parts.append("(This is the document you are reviewing.)\n\n")
+            prompt_parts.append(f"{current_doc}\n\n")
 
-        # Task instructions (role-specific)
-        prompt_parts.append("\n=== YOUR TASK ===\n")
-        prompt_parts.append(self._get_task_instructions(agent, is_first_turn, self.state.current_round))
+        prompt_parts.append("=== YOUR TASK ===\n")
+        prompt_parts.append(self._get_editor_instructions(agent))
 
-        prompt_parts.append("\n\n=== EVALUATION FORMAT ===\n")
+        # Add evaluation format
+        prompt_parts.append(self._get_evaluation_format(agent, is_writer=False))
 
-        # Different output description for Writer vs Editors
-        if agent.phase == 1:
-            output_description = "The complete document text (not suggestions - the actual content)"
-        else:
-            output_description = "Your editorial feedback or critique"
+        return "".join(prompt_parts)
 
-        prompt_parts.append(
+    def _build_synthesizer_prompt(self, agent: AgentConfig) -> str:
+        """Build prompt for Synthesizer with current draft + this round's editor feedback."""
+        prompt_parts = []
+
+        # Current document
+        current_doc = self._get_current_document()
+        if current_doc:
+            prompt_parts.append("=== WORKING DOCUMENT ===\n")
+            prompt_parts.append("(This is the current draft being reviewed.)\n\n")
+            prompt_parts.append(f"{current_doc}\n\n")
+
+        # Get ONLY this round's editor feedback (from current_round_editor_feedback)
+        editor_feedback = self._get_current_round_editor_feedback()
+        prompt_parts.append("=== EDITOR FEEDBACK (THIS ROUND) ===\n")
+        prompt_parts.append(editor_feedback)
+        prompt_parts.append("\n\n")
+
+        prompt_parts.append("=== YOUR TASK ===\n")
+        prompt_parts.append(self._get_synthesizer_instructions())
+
+        # Add evaluation format
+        prompt_parts.append(self._get_evaluation_format(agent, is_writer=False))
+
+        return "".join(prompt_parts)
+
+    def _get_synthesizer_directive(self, round_number: int) -> str:
+        """Get the Synthesizer's directive from a specific round."""
+        for turn in reversed(self.state.exchange_history):
+            if turn.round_number == round_number and turn.agent_id == "synthesizer":
+                return turn.output
+        return "(No directive from previous round)"
+
+    def _get_current_round_editor_feedback(self) -> str:
+        """Get feedback from all editors in the current round (stored during parallel execution)."""
+        # This will be populated during parallel editor execution
+        if hasattr(self, '_current_round_editor_feedback') and self._current_round_editor_feedback:
+            return self._current_round_editor_feedback
+
+        # Fallback: collect from exchange history for current round
+        feedback_parts = []
+        for turn in self.state.exchange_history:
+            if turn.round_number == self.state.current_round and turn.agent_id not in ("writer", "synthesizer"):
+                feedback_parts.append(f"### {turn.agent_name}\n{turn.output}\n")
+
+        if not feedback_parts:
+            return "(No editor feedback yet)"
+
+        return "\n---\n".join(feedback_parts)
+
+    def _get_evaluation_format(self, agent: AgentConfig, is_writer: bool) -> str:
+        """Get the evaluation format instructions."""
+        output_description = "The complete document text (not suggestions - the actual content)" if is_writer else "Your editorial feedback or critique"
+
+        parts = ["\n\n=== EVALUATION FORMAT ===\n"]
+        parts.append(
             "After completing your task, provide a structured evaluation in the following JSON format:\n\n"
             "```json\n"
             "{\n"
@@ -262,11 +372,11 @@ class StreamingOrchestrator:
         )
 
         for criterion in agent.evaluation_criteria:
-            prompt_parts.append(
+            parts.append(
                 f'      {{"criterion": "{criterion.name}", "score": 7, "justification": "Brief explanation"}},\n'
             )
 
-        prompt_parts.append(
+        parts.append(
             '    ],\n'
             '    "overall_score": 7.5,\n'
             '    "summary": "Brief overall assessment"\n'
@@ -276,7 +386,7 @@ class StreamingOrchestrator:
             'Score each criterion from 1-10. The overall score should be the average of criterion scores.\n'
         )
 
-        return "".join(prompt_parts)
+        return "".join(parts)
 
     def _build_system_prompt(self, agent: AgentConfig) -> str:
         """Build the system prompt for an agent."""
@@ -308,54 +418,6 @@ class StreamingOrchestrator:
             # Editors and Synthesizer don't change the document
             return self._get_current_document()
 
-    def _aggregate_editor_feedback(self, round_number: int) -> str:
-        """Aggregate feedback from all editors in a given round."""
-        feedback_parts = []
-
-        for turn in self.state.exchange_history:
-            if turn.round_number == round_number:
-                # Skip Writer turns (phase 1) - check by agent_id
-                if turn.agent_id != "writer":
-                    feedback_parts.append(f"### {turn.agent_name}\n{turn.output}\n")
-
-        if not feedback_parts:
-            return "(No editorial feedback from previous round)"
-
-        return "\n---\n".join(feedback_parts)
-
-    def _get_task_instructions(self, agent: AgentConfig, is_first_turn: bool, round_number: int) -> str:
-        """Get task instructions based on agent role/phase."""
-        if is_first_turn:
-            return self.state.config.initial_prompt
-
-        if agent.phase == 1:  # Writer
-            return self._get_writer_revision_instructions(round_number)
-        elif agent.phase == 2:  # Editors (Content Expert, Style Editor, Fact Checker)
-            return self._get_editor_instructions(agent)
-        elif agent.phase == 3:  # Synthesizer
-            return self._get_synthesizer_instructions()
-        else:
-            return "Review and provide feedback on the current draft."
-
-    def _get_writer_revision_instructions(self, round_number: int) -> str:
-        """Build revision instructions for the Writer with aggregated feedback."""
-        feedback = self._aggregate_editor_feedback(round_number - 1)
-
-        return f"""Revise your draft based on the editorial feedback below.
-
-=== EDITORIAL FEEDBACK ===
-{feedback}
-===========================
-
-IMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.
-
-Instructions:
-- Read the editorial feedback carefully
-- Incorporate the feedback by default, unless you feel strongly it would harm the work
-- Preserve what works
-
-OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feedback - output the actual text of the document."""
-
     def _get_editor_instructions(self, agent: AgentConfig) -> str:
         """Get instructions for editor roles."""
         base = "Review the WORKING DOCUMENT above and provide your editorial feedback.\n\n"
@@ -384,7 +446,7 @@ Do NOT rewrite the document. Produce a revision directive only."""
         Group active agents by phase for proper execution order.
 
         Phase 1: Writer (creates/revises document)
-        Phase 2: Editors (provide feedback)
+        Phase 2: Editors (provide feedback) - run in PARALLEL
         Phase 3: Synthesizer (prioritizes feedback)
         """
         active = [a for a in self.state.config.agents if a.is_active]
@@ -396,6 +458,164 @@ Do NOT rewrite the document. Produce a revision directive only."""
             else:
                 phases[2].append(agent)  # Unknown phase defaults to editor
         return phases
+
+    async def _run_single_editor(
+        self,
+        agent: AgentConfig,
+        turn_number: int,
+    ) -> dict:
+        """
+        Run a single editor agent and return all results.
+
+        Used for parallel execution of Phase 2 editors.
+        Returns a dict with events, turn data, and success status.
+        """
+        events = []
+        result = {
+            "success": False,
+            "events": events,
+            "turn": None,
+            "usage": None,
+            "agent_id": agent.agent_id,
+            "output": None,
+        }
+
+        # Agent start event
+        events.append(self._create_event(StreamEventType.AGENT_START, {
+            "agent_id": agent.agent_id,
+            "agent_name": agent.display_name,
+            "turn_number": turn_number,
+            "round_number": self.state.current_round,
+            "phase": 2,
+            "parallel": True,
+        }))
+
+        # Get provider
+        provider = self.providers.get(agent.provider)
+        if not provider:
+            events.append(self._create_event(StreamEventType.ERROR, {
+                "message": f"Provider {agent.provider} not configured"
+            }))
+            return result
+
+        # Build prompts
+        system_prompt = self._build_system_prompt(agent)
+        user_prompt = self._build_agent_prompt(agent, is_first_turn=False)
+
+        # Generate response (collect tokens, don't stream individually during parallel)
+        full_response = ""
+        model_name = agent.model.value if hasattr(agent.model, 'value') else agent.model
+        tokens_for_streaming = []
+
+        try:
+            async for token in provider.generate_stream(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                model=model_name,
+                temperature=0.7,
+            ):
+                full_response += token
+                tokens_for_streaming.append(token)
+
+            # Record successful API call
+            health_tracker.record_success(agent.provider)
+
+        except Exception as e:
+            error_str = str(e).lower()
+            is_overload = 'overload' in error_str or 'rate' in error_str or '529' in error_str or '429' in error_str
+
+            health_tracker.record_failure(agent.provider, str(e), is_overload=is_overload)
+
+            if is_overload:
+                if agent.provider == ProviderType.ANTHROPIC:
+                    alt_suggestion = "GPT-4o or Gemini"
+                elif agent.provider == ProviderType.OPENAI:
+                    alt_suggestion = "Claude or Gemini"
+                else:
+                    alt_suggestion = "Claude or GPT-4o"
+
+                logger.error(f"Error streaming from {agent.display_name} (overloaded): {e}")
+                events.append(self._create_event(StreamEventType.ERROR, {
+                    "agent_id": agent.agent_id,
+                    "message": f"The AI service is currently overloaded. Please wait a moment and try again, or switch to a different model (e.g., {alt_suggestion}).",
+                    "error_type": "overload",
+                }))
+            else:
+                logger.error(f"Error streaming from {agent.display_name}: {e}")
+                events.append(self._create_event(StreamEventType.ERROR, {
+                    "agent_id": agent.agent_id,
+                    "message": str(e),
+                }))
+            return result
+
+        # Add token events (will be yielded in batch after parallel completion)
+        for token in tokens_for_streaming:
+            events.append(self._create_event(StreamEventType.AGENT_TOKEN, {
+                "agent_id": agent.agent_id,
+                "token": token,
+            }))
+
+        # Parse evaluation
+        expected_criteria = [c.name for c in agent.evaluation_criteria]
+        evaluation, parse_error = parse_evaluation(full_response, expected_criteria)
+
+        # Extract output
+        output = extract_content_from_response(full_response)
+        result["output"] = output
+
+        # Get current document (editors don't modify it)
+        current_doc = self._get_current_document()
+
+        # Calculate usage
+        usage = self._calculate_turn_credits(
+            model=model_name,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            response=full_response,
+        )
+        result["usage"] = usage
+
+        # Create exchange turn
+        turn = ExchangeTurn(
+            turn_number=turn_number,
+            round_number=self.state.current_round,
+            agent_id=agent.agent_id,
+            agent_name=agent.display_name,
+            timestamp=datetime.now(timezone.utc),
+            output=output,
+            raw_response=full_response,
+            evaluation=evaluation,
+            parse_error=parse_error,
+            working_document=current_doc,
+            tokens_input=usage["input_tokens"],
+            tokens_output=usage["output_tokens"],
+            credits_used=usage["credits_used"],
+        )
+        result["turn"] = turn
+
+        # Agent complete event
+        events.append(self._create_event(StreamEventType.AGENT_COMPLETE, {
+            "agent_id": agent.agent_id,
+            "agent_name": agent.display_name,
+            "turn_number": turn_number,
+            "evaluation": {
+                "overall_score": evaluation.overall_score if evaluation else None,
+                "criteria_scores": [
+                    {"criterion": cs.criterion, "score": cs.score}
+                    for cs in (evaluation.criteria_scores if evaluation else [])
+                ],
+            } if evaluation else None,
+            "output_length": len(output),
+            "usage": {
+                "input_tokens": usage["input_tokens"],
+                "output_tokens": usage["output_tokens"],
+                "credits_used": usage["credits_used"],
+            },
+            "parallel": True,
+        }))
+
+        result["success"] = True
+        return result
 
     def _check_termination(self) -> Optional[str]:
         """Check if termination conditions are met."""
@@ -525,8 +745,95 @@ Do NOT rewrite the document. Produce a revision directive only."""
                     "max_rounds": self.state.config.termination.max_rounds,
                 })
 
-                # Execute agents in phase order: Phase 1 → Phase 2 → Phase 3
+                # Execute agents in phase order: Phase 1 → Phase 2 (PARALLEL) → Phase 3
+                # Reset editor feedback storage for this round
+                self._current_round_editor_feedback = ""
+
                 for phase_num in [1, 2, 3]:
+                    # Check for cancellation before each phase
+                    if self.state.is_cancelled:
+                        self.state.termination_reason = "Stopped by user"
+                        break
+
+                    # PHASE 2: Run editors in PARALLEL
+                    if phase_num == 2 and phases[2]:
+                        # Check credits before starting parallel editors
+                        if self.initial_balance is not None:
+                            remaining_credits = self.initial_balance - self.session_credits_used
+                            editors_count = len(phases[2])
+                            if remaining_credits < editors_count * 2:
+                                self.state.termination_reason = "Insufficient credits"
+                                self.state.is_running = False
+                                yield self._create_event(StreamEventType.SESSION_COMPLETE, {
+                                    "reason": "credit_depleted",
+                                    "message": "Session stopped: insufficient credits remaining",
+                                    "rounds_completed": self.state.current_round,
+                                    "turns_completed": len(self.state.exchange_history),
+                                    "credits_used": self.session_credits_used,
+                                })
+                                return
+
+                        # Assign turn numbers for parallel editors
+                        editor_turn_numbers = {}
+                        for agent in phases[2]:
+                            turn_number += 1
+                            editor_turn_numbers[agent.agent_id] = turn_number
+
+                        # Run all editors in parallel
+                        logger.info(f"Running {len(phases[2])} editors in parallel")
+                        editor_tasks = [
+                            self._run_single_editor(agent, editor_turn_numbers[agent.agent_id])
+                            for agent in phases[2]
+                        ]
+                        editor_results = await asyncio.gather(*editor_tasks, return_exceptions=True)
+
+                        # Process results and yield events
+                        editor_feedback_parts = []
+                        for result in editor_results:
+                            if isinstance(result, Exception):
+                                logger.error(f"Editor task failed: {result}")
+                                continue
+
+                            # Yield all events from this editor
+                            for event in result.get("events", []):
+                                yield event
+
+                            # Add turn to exchange history
+                            if result.get("turn"):
+                                self.state.exchange_history.append(result["turn"])
+
+                            # Accumulate usage
+                            if result.get("usage"):
+                                self.session_credits_used += result["usage"]["credits_used"]
+                                self.turn_usage_records.append({
+                                    "turn_number": editor_turn_numbers[result["agent_id"]],
+                                    "agent_id": result["agent_id"],
+                                    "model": result["turn"].agent_name if result.get("turn") else "unknown",
+                                    **result["usage"],
+                                })
+
+                            # Collect editor feedback for Synthesizer
+                            if result.get("success") and result.get("output"):
+                                turn_obj = result["turn"]
+                                editor_feedback_parts.append(f"### {turn_obj.agent_name}\n{result['output']}\n")
+
+                        # Store aggregated editor feedback for Synthesizer
+                        self._current_round_editor_feedback = "\n---\n".join(editor_feedback_parts) if editor_feedback_parts else "(No editor feedback)"
+
+                        # Credit warning check after parallel editors
+                        if self.initial_balance is not None and not self._credit_warning_sent:
+                            remaining_credits = self.initial_balance - self.session_credits_used
+                            if remaining_credits < 5:
+                                self._credit_warning_sent = True
+                                yield self._create_event(StreamEventType.CREDIT_WARNING, {
+                                    "remaining_credits": remaining_credits,
+                                    "session_credits_used": self.session_credits_used,
+                                    "message": "Low credits - session may stop soon",
+                                })
+
+                        continue  # Skip the sequential loop for Phase 2
+
+                    # PHASE 1 & 3: Run sequentially with streaming
                     for agent in phases[phase_num]:
                         # Check for cancellation before each agent
                         if self.state.is_cancelled:
@@ -534,7 +841,6 @@ Do NOT rewrite the document. Produce a revision directive only."""
                             break
 
                         # Check if user has enough credits to continue
-                        # Estimate ~2 credits minimum per turn as a safety threshold
                         if self.initial_balance is not None:
                             remaining_credits = self.initial_balance - self.session_credits_used
                             if remaining_credits < 2:
@@ -774,8 +1080,8 @@ Do NOT rewrite the document. Produce a revision directive only."""
                         provider = self.providers.get(writer.provider)
                         if provider:
                             system_prompt = self._build_system_prompt(writer)
-                            # Special final pass prompt
-                            user_prompt = self._build_agent_prompt(writer, is_first_turn=False)
+                            # Special final pass prompt - uses current round's Synthesizer directive
+                            user_prompt = self._build_agent_prompt(writer, is_first_turn=False, is_final_pass=True)
 
                             full_response = ""
                             model_name = writer.model.value if hasattr(writer.model, 'value') else writer.model
