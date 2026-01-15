@@ -189,7 +189,7 @@ export default function AdminSessionsPage() {
                   </p>
                 </div>
                 <Button
-                  variant="destructive"
+                  variant="danger"
                   size="sm"
                   onClick={() => handleForceReset(session.id)}
                   disabled={resettingSession === session.id}
