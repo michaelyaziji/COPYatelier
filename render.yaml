@@ -1,0 +1,117 @@
+# Render Blueprint for Atelier Staging Environment
+# https://render.com/docs/blueprint-spec
+
+databases:
+  - name: copyatelier-db
+    plan: starter
+    databaseName: atelier
+    user: atelier
+
+services:
+  # =============================================================================
+  # FRONTEND - Next.js Application
+  # =============================================================================
+  - type: web
+    name: copyatelier-frontend
+    runtime: node
+    plan: starter
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm run start
+    envVars:
+      # Backend API URL - will be set after backend deploys
+      - key: NEXT_PUBLIC_API_URL
+        value: https://copyatelier-backend.onrender.com/api/v1
+
+      # Clerk Authentication (get from https://dashboard.clerk.com)
+      - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
+        value: REPLACE_ME  # Clerk publishable key (pk_test_... or pk_live_...)
+      - key: CLERK_SECRET_KEY
+        value: REPLACE_ME  # Clerk secret key (sk_test_... or sk_live_...)
+
+      # Node environment
+      - key: NODE_ENV
+        value: production
+
+  # =============================================================================
+  # BACKEND - FastAPI Application
+  # =============================================================================
+  - type: web
+    name: copyatelier-backend
+    runtime: python
+    plan: starter
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      # Database - automatically uses the connected PostgreSQL database
+      - key: DATABASE_URL
+        fromDatabase:
+          name: copyatelier-db
+          property: connectionString
+        # Note: Render provides postgres:// but asyncpg needs postgresql+asyncpg://
+        # You may need to transform this in your app or use a build script
+
+      # Application Settings
+      - key: ENVIRONMENT
+        value: staging
+      - key: LOG_LEVEL
+        value: INFO
+      - key: AUTO_MIGRATE
+        value: "true"
+      - key: DATABASE_ECHO
+        value: "false"
+
+      # AI Provider API Keys
+      - key: ANTHROPIC_API_KEY
+        value: REPLACE_ME  # Get from https://console.anthropic.com
+      - key: GOOGLE_API_KEY
+        value: REPLACE_ME  # Get from https://makersuite.google.com/app/apikey
+      - key: OPENAI_API_KEY
+        value: REPLACE_ME  # Get from https://platform.openai.com/api-keys
+      - key: PERPLEXITY_API_KEY
+        value: REPLACE_ME  # Get from https://www.perplexity.ai/settings/api
+
+      # Clerk Authentication (get from https://dashboard.clerk.com)
+      - key: CLERK_ISSUER
+        value: REPLACE_ME  # e.g., https://your-app.clerk.accounts.dev
+      - key: CLERK_JWKS_URL
+        value: REPLACE_ME  # e.g., https://your-app.clerk.accounts.dev/.well-known/jwks.json
+
+      # Stripe Configuration (get from https://dashboard.stripe.com/apikeys)
+      - key: STRIPE_SECRET_KEY
+        value: REPLACE_ME  # sk_test_... for staging
+      - key: STRIPE_WEBHOOK_SECRET
+        value: REPLACE_ME  # whsec_... (create webhook pointing to /api/v1/billing/webhook)
+      - key: STRIPE_STARTER_PRICE_ID
+        value: REPLACE_ME  # price_... for Starter plan
+      - key: STRIPE_PRO_PRICE_ID
+        value: REPLACE_ME  # price_... for Pro plan
+      - key: STRIPE_STARTER_YEARLY_PRICE_ID
+        value: REPLACE_ME  # price_... for Starter yearly (optional)
+      - key: STRIPE_PRO_YEARLY_PRICE_ID
+        value: REPLACE_ME  # price_... for Pro yearly (optional)
+
+      # Frontend URL (for Stripe redirects)
+      - key: FRONTEND_URL
+        value: https://copyatelier-frontend.onrender.com
+
+      # CORS Configuration
+      - key: CORS_ORIGINS
+        value: https://copyatelier-frontend.onrender.com
+      - key: CORS_ALLOW_CREDENTIALS
+        value: "true"
+
+      # Email Configuration (SMTP)
+      - key: SMTP_HOST
+        value: smtp.hostinger.com
+      - key: SMTP_PORT
+        value: "465"
+      - key: SMTP_USERNAME
+        value: REPLACE_ME  # e.g., info@atelierwritereditor.com
+      - key: SMTP_PASSWORD
+        value: REPLACE_ME  # Email account password
+      - key: SMTP_FROM_EMAIL
+        value: "Atelier <info@atelierwritereditor.com>"
+      - key: SMTP_USE_SSL
+        value: "true"
