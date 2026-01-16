@@ -3,7 +3,7 @@
 
 databases:
   - name: copyatelier-db
-    plan: starter
+    plan: free  # Options: free, basic ($7/mo), standard, pro
     databaseName: atelier
     user: atelier
 
