@@ -403,15 +403,21 @@ function GenerateSection({ onGenerate, onBack, activeProviders, activeRoles, max
 
   // Build workflow summary
   const buildWorkflowSummary = () => {
-    if (allSameModel && activeRoles.length > 0) {
+    if (activeRoles.length === 0) return '';
+
+    let summary: string;
+    if (allSameModel) {
       // All same model: show names without models
-      return activeRoles.map((r) => r.name).join(' → ');
+      summary = activeRoles.map((r) => r.name).join(' → ');
     } else {
       // Different models: show name with model in parentheses
-      return activeRoles
+      summary = activeRoles
         .map((r) => `${r.name} (${getShortModelName(r.provider, r.model)})`)
         .join(' → ');
     }
+
+    // Always end with "→ Writer" since Writer revises based on feedback
+    return summary + ' → Writer';
   };
 
   // Get the common model name if all same
