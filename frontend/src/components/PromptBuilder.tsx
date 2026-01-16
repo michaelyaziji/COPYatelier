@@ -31,7 +31,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
 
   return (
     <div className="mb-5">
-      <p className="text-sm text-zinc-500 mb-3">
+      <p className="text-sm text-zinc-700 mb-3">
         Optional: Set document preferences to guide the AI
       </p>
 
@@ -41,6 +41,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
         <div>
           <Select
             label="Document Type"
+            labelTooltip="Helps the writer match genre conventions"
             value={selections.outletType}
             onValueChange={(value) =>
               updateSelections({
@@ -69,6 +70,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
         <div>
           <Select
             label="Target Audience"
+            labelTooltip="Adjusts vocabulary, assumed knowledge, and framing"
             value={selections.audience}
             onValueChange={(value) =>
               updateSelections({
@@ -96,6 +98,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
         {/* Length Range */}
         <Select
           label="Target Length"
+          labelTooltip="Approximate word count — the writer will aim for this range"
           value={selections.lengthRange}
           onValueChange={(value) =>
             updateSelections({
@@ -109,6 +112,7 @@ export function PromptBuilder({ onGenerate }: PromptBuilderProps) {
         {/* Reading Level */}
         <Select
           label="Reading Level"
+          labelTooltip="Controls sentence complexity and terminology"
           value={selections.readingLevel}
           onValueChange={(value) =>
             updateSelections({

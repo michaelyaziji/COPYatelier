@@ -2,14 +2,15 @@
 
 import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
-import { PenTool, Settings2, FileText, AlertCircle, Upload, X, ArrowRight, AlertTriangle } from 'lucide-react';
-import { Input } from '@/components/ui/input';
+import { PenTool, FileText, AlertCircle, Upload, X, ArrowRight, AlertTriangle } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ReferenceMaterials } from '@/components/ReferenceMaterials';
 import { PromptBuilder } from '@/components/PromptBuilder';
+import { Select } from '@/components/ui/select';
 import { useSessionStore } from '@/store/session';
+import { DRAFT_TREATMENT_OPTIONS, DraftTreatmentType } from '@/types/presets';
 import { useCreditsStore } from '@/store/credits';
 import { API_BASE } from '@/lib/api';
 import { clsx } from 'clsx';
@@ -20,19 +21,16 @@ interface SessionSetupProps {
 
 export function SessionSetup({ onNext }: SessionSetupProps) {
   const {
-    title,
-    setTitle,
     initialPrompt,
     setInitialPrompt,
     workingDocument,
     setWorkingDocument,
     referenceDocuments,
     maxRounds,
-    setMaxRounds,
-    scoreThreshold,
-    setScoreThreshold,
     workflowRoles,
     getActiveWorkflowAgents,
+    presetSelections,
+    setPresetSelections,
   } = useSessionStore();
 
   const { estimateSessionCredits, lastEstimate, balance, fetchBalance } = useCreditsStore();
@@ -168,11 +166,10 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
           <p className="text-sm text-zinc-600 leading-relaxed mb-6 max-w-2xl mx-auto">
             The more context you provide, the better your results will be.
           </p>
-          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-zinc-500">
+          <div className="flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm text-zinc-700">
             <span><span className="font-semibold text-violet-600">i.</span> Describe your task</span>
-            <span><span className="font-semibold text-violet-600">ii.</span> Set preferences</span>
-            <span><span className="font-semibold text-violet-600">iii.</span> Add references <span className="text-zinc-400">(optional)</span></span>
-            <span><span className="font-semibold text-violet-600">iv.</span> Upload a draft <span className="text-zinc-400">(optional)</span></span>
+            <span><span className="font-semibold text-violet-600">ii.</span> Upload a draft <span className="text-zinc-500">(optional)</span></span>
+            <span><span className="font-semibold text-violet-600">iii.</span> Add references <span className="text-zinc-500">(optional)</span></span>
           </div>
         </CardContent>
       </Card>
@@ -186,8 +183,8 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
             </div>
             <div>
               <h2 className="text-lg font-semibold text-zinc-900"><span className="text-violet-600">i.</span> What would you like to write?</h2>
-              <p className="text-sm text-zinc-500 mt-1">
-                Describe your writing task in detail. The more specific, the better the results.
+              <p className="text-sm text-zinc-700 mt-1">
+                What do you want to write? Include who it's for and how it will be used.
               </p>
             </div>
           </div>
@@ -195,81 +192,13 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
           <Textarea
             value={initialPrompt}
             onChange={(e) => setInitialPrompt(e.target.value)}
-            placeholder="Example: Write a compelling 800-word blog post about the future of remote work. Include statistics, address common concerns, and end with actionable tips for companies transitioning to hybrid models."
+            placeholder="Example: A board memo summarizing Q1 results for investors who haven't seen our product roadmap. Professional tone, confident but not defensive."
             rows={5}
             className="text-base !border-2 !border-violet-300 focus:!border-violet-500 mb-5"
           />
 
           {/* Prompt Builder */}
           <PromptBuilder onGenerate={setInitialPrompt} />
-        </CardContent>
-      </Card>
-
-      {/* Session Settings */}
-      <Card className="border border-zinc-200">
-        <CardContent className="py-5">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-lg bg-zinc-100 flex items-center justify-center">
-              <Settings2 className="h-5 w-5 text-zinc-600" />
-            </div>
-            <div>
-              <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">ii.</span> How polished should it be?</h3>
-              <p className="text-sm text-zinc-500">More rounds = more refined output (uses more credits)</p>
-            </div>
-          </div>
-          <p className="text-xs text-zinc-400 mb-5 ml-[52px]">
-            Each round: Writer drafts → Editors review → Writer revises based on feedback
-          </p>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Input
-              label="Session Name"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="My Writing Project"
-            />
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Number of Rounds
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                value={maxRounds || ''}
-                onChange={(e) => setMaxRounds(parseInt(e.target.value) || 0)}
-                onBlur={() => { if (maxRounds < 1) setMaxRounds(3); }}
-                className="w-full px-4 py-3 border-2 border-zinc-200 rounded-xl text-sm bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white hover:border-violet-300 hover:bg-white transition-all"
-              />
-              <p className="mt-1.5 text-xs text-zinc-400">
-                More rounds = more polished (uses more credits)
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-zinc-700 mb-2">
-                Target Quality (1-10)
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={10}
-                step={0.5}
-                value={scoreThreshold || ''}
-                onChange={(e) =>
-                  setScoreThreshold(
-                    e.target.value ? parseFloat(e.target.value) : null
-                  )
-                }
-                placeholder="Optional"
-                className="w-full px-4 py-3 border-2 border-zinc-200 rounded-xl text-sm bg-zinc-50 focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent focus:bg-white hover:border-violet-300 hover:bg-white transition-all placeholder:text-zinc-400"
-              />
-              <p className="mt-1.5 text-xs text-zinc-400">
-                Stop early when the synthesizing editor scores this or higher
-              </p>
-            </div>
-          </div>
         </CardContent>
       </Card>
 
@@ -317,8 +246,8 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                 <FileText className="h-5 w-5 text-zinc-600" />
               </div>
               <div>
-                <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iii.</span> Do you have a draft to improve?</h3>
-                <p className="text-sm text-zinc-500">Optional - upload or paste existing text to refine</p>
+                <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">ii.</span> Do you have a draft to improve?</h3>
+                <p className="text-sm text-zinc-700">Optional - upload or paste existing text to refine</p>
               </div>
             </div>
             {uploadedFileName && (
@@ -380,7 +309,7 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
                   </>
                 )}
               </p>
-              <p className="text-xs text-zinc-400 mt-1">
+              <p className="text-xs text-zinc-500 mt-1">
                 Word, PDF, Text, or Markdown
               </p>
             </div>
@@ -404,10 +333,24 @@ export function SessionSetup({ onNext }: SessionSetupProps) {
             rows={workingDocument ? 6 : 3}
           />
           {workingDocument && (
-            <p className="mt-2 text-xs text-zinc-400">
+            <p className="mt-2 text-xs text-zinc-600">
               {documentWords.toLocaleString()} words
             </p>
           )}
+
+          {/* Draft Treatment Selector */}
+          <div className="mt-5">
+            <Select
+              label="How should we treat your draft?"
+              value={presetSelections.draftTreatment}
+              onValueChange={(value) => setPresetSelections({ ...presetSelections, draftTreatment: value as DraftTreatmentType })}
+              options={DRAFT_TREATMENT_OPTIONS}
+              placeholder="Select treatment..."
+            />
+            <p className="mt-1.5 text-xs text-zinc-600">
+              Applies when you upload or paste a draft above
+            </p>
+          </div>
         </CardContent>
       </Card>
 

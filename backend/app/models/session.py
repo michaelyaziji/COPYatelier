@@ -50,6 +50,10 @@ class SessionConfig(BaseModel):
         default="",
         description="User instructions explaining how to use the reference documents"
     )
+    draft_treatment: Optional[str] = Field(
+        default=None,
+        description="How to treat the user's draft: 'light_polish', 'moderate_revision', or 'free_rewrite'"
+    )
 
     model_config = ConfigDict(use_enum_values=True)
 

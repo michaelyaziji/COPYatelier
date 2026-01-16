@@ -63,6 +63,15 @@ export const READING_LEVEL_OPTIONS = [
   { value: 'expert', label: 'Expert / Technical' },
 ];
 
+// Draft Treatment Options
+export type DraftTreatmentType = 'light_polish' | 'moderate_revision' | 'free_rewrite';
+
+export const DRAFT_TREATMENT_OPTIONS = [
+  { value: 'light_polish', label: 'Light polish — preserve my structure and voice', tooltip: 'Minimal changes — fixes errors, keeps your voice' },
+  { value: 'moderate_revision', label: 'Moderate revision — keep my ideas, improve expression', tooltip: 'Improves expression while preserving your ideas' },
+  { value: 'free_rewrite', label: 'Free rewrite — use as inspiration only', tooltip: 'Uses your draft as a starting point only' },
+];
+
 // Preset State Interface
 export interface PresetSelections {
   outletType: OutletType | '';
@@ -71,6 +80,7 @@ export interface PresetSelections {
   customAudience: string;
   lengthRange: LengthRange | '';
   readingLevel: ReadingLevel | '';
+  draftTreatment: DraftTreatmentType | '';
 }
 
 // Helper to generate context string for agents

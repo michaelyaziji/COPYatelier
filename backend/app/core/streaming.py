@@ -230,7 +230,7 @@ class StreamingOrchestrator:
         prompt_parts = []
 
         if is_first_turn:
-            # Round 1: User prompt + reference materials
+            # Round 1: User prompt + reference materials + draft (if present)
             if self.state.config.reference_documents:
                 prompt_parts.append("=== REFERENCE MATERIALS ===\n")
                 prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
@@ -240,6 +240,18 @@ class StreamingOrchestrator:
                     prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
                 prompt_parts.append("\n")
 
+            # Include user's draft if present
+            if self.state.config.working_document:
+                prompt_parts.append("=== USER'S DRAFT ===\n")
+                prompt_parts.append("(The user has provided this draft to work from.)\n\n")
+                prompt_parts.append(f"{self.state.config.working_document}\n\n")
+
+                # Add draft treatment instructions if specified
+                draft_treatment_instructions = self._get_draft_treatment_instructions()
+                if draft_treatment_instructions:
+                    prompt_parts.append("=== DRAFT TREATMENT ===\n")
+                    prompt_parts.append(f"{draft_treatment_instructions}\n\n")
+
             prompt_parts.append("=== YOUR TASK ===\n")
             prompt_parts.append(self.state.config.initial_prompt)
             prompt_parts.append("\n\nIMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.")
@@ -248,7 +260,7 @@ class StreamingOrchestrator:
         else:
             # Round 2+ or final pass: Current draft + Synthesizer's directive only
             prompt_parts.append("=== ORIGINAL TASK ===\n")
-            prompt_parts.append("(The user's original request:)\n\n")
+            prompt_parts.append("(The user's original request — this is your primary directive and takes precedence over editor suggestions:)\n\n")
             prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
 
             # Include reference materials for context
@@ -281,8 +293,9 @@ class StreamingOrchestrator:
 IMPORTANT: You are the WRITER. Your job is to PRODUCE THE ACTUAL DOCUMENT TEXT.
 
 Instructions:
-- Read the revision directive carefully
-- Incorporate the feedback by default, unless you feel strongly it would harm the work
+- The user's ORIGINAL TASK above is your ultimate authority — always honor their stated requirements, tone, audience, and intent
+- Incorporate editorial feedback that aligns with the user's goals
+- Reject or modify suggestions that would contradict what the user asked for
 - Preserve what works
 
 OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feedback - output the actual text of the document.""")
@@ -298,7 +311,7 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
 
         # Original task so editors understand the intent/requirements
         prompt_parts.append("=== ORIGINAL TASK ===\n")
-        prompt_parts.append("(The user's original request - use this to understand the intent:)\n\n")
+        prompt_parts.append("(The user's original request — this defines the requirements. Your feedback must respect and support what the user asked for:)\n\n")
         prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
 
         # Current draft to review
@@ -322,7 +335,7 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
 
         # Original task so synthesizer understands the intent
         prompt_parts.append("=== ORIGINAL TASK ===\n")
-        prompt_parts.append("(The user's original request - use this to prioritize feedback:)\n\n")
+        prompt_parts.append("(The user's original request — this is the ultimate authority. Reject any editor feedback that would contradict the user's stated requirements:)\n\n")
         prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
 
         # Current document
@@ -412,6 +425,32 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
 
         return "".join(system_parts)
 
+    def _get_draft_treatment_instructions(self) -> Optional[str]:
+        """Get draft treatment instructions based on the user's selection."""
+        treatment = self.state.config.draft_treatment
+        if not treatment:
+            return None
+
+        instructions = {
+            "light_polish": (
+                "The user has provided a draft. Preserve their structure, organization, voice, and key phrasing. "
+                "Fix errors, improve clarity, and smooth awkward passages, but do not reorganize or substantially rewrite. "
+                "The output should feel like a polished version of their draft, not a new document."
+            ),
+            "moderate_revision": (
+                "The user has provided a draft. Retain their core ideas and overall argument, but feel free to improve "
+                "sentence structure, word choice, and flow. You may reorganize paragraphs if it strengthens the piece, "
+                "but maintain the original intent and tone."
+            ),
+            "free_rewrite": (
+                "The user has provided a draft as a starting point. Use their ideas and content as inspiration, "
+                "but feel free to restructure, reframe, and rewrite substantially. "
+                "The output may differ significantly in organization and voice."
+            ),
+        }
+
+        return instructions.get(treatment)
+
     def _get_current_document(self) -> str:
         """Get the latest version of the working document."""
         if self.state.exchange_history:
@@ -433,11 +472,15 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
 
     def _get_editor_instructions(self, agent: AgentConfig) -> str:
         """Get instructions for editor roles."""
-        base = "Review the WORKING DOCUMENT above and provide your editorial feedback.\n\n"
+        base = """Review the WORKING DOCUMENT above and provide your editorial feedback.
+
+IMPORTANT: The user's ORIGINAL TASK defines what success looks like. Your suggestions must support — not contradict — the user's stated requirements, tone, audience, and intent. If the user asked for a casual tone, don't suggest making it formal. If they want it brief, don't suggest expanding it.
+
+"""
 
         role_instructions = {
             "content_expert": "Focus on: accuracy, completeness, intellectual depth. Flag oversimplifications, gaps, and claims that overreach evidence. Suggest specific additions.\n\nDo NOT rewrite the document. Provide feedback only.",
-            "style_editor": "Focus on: sentence rhythm, word choice, transitions, clarity, economy. Cut throat-clearing, redundancy, jargon. Preserve the author's voice.\n\nDo NOT rewrite the document. Provide feedback only.",
+            "style_editor": "Focus on: sentence rhythm, word choice, transitions, clarity, economy. Cut throat-clearing, redundancy, jargon. Preserve the author's voice and honor their stated tone preferences.\n\nDo NOT rewrite the document. Provide feedback only.",
             "fact_checker": "Focus on: verifiable claims, statistics, attributions. For each issue, specify what's claimed, why it's problematic, and what would resolve it.\n\nDo NOT rewrite the document. Provide feedback only.",
         }
 
@@ -447,9 +490,14 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
         """Get instructions for the Synthesizing Editor."""
         return """Review all editorial feedback from this round and produce a PRIORITIZED REVISION DIRECTIVE.
 
+CRITICAL: The user's ORIGINAL TASK is the ultimate authority. When evaluating editor feedback:
+- Accept suggestions that help achieve what the user asked for
+- Reject suggestions that would contradict the user's stated requirements, tone, audience, or intent
+- If an editor suggests something that conflicts with the user's request, explicitly note it should be ignored
+
 Your output should be:
 1. A clear hierarchy of what MUST change, what SHOULD change, and what can be ignored
-2. When editors conflict, make the call and explain your reasoning
+2. When editors conflict, defer to whichever suggestion better serves the user's original request
 3. Specific, actionable direction for the Writer
 
 Do NOT rewrite the document. Produce a revision directive only."""

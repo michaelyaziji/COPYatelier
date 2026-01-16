@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Sparkles, AlertTriangle, ChevronRight, Settings, PanelLeftClose, PanelLeft, Shield, HelpCircle, MessageSquare, CreditCard as CreditCardIcon } from 'lucide-react';
+import { Sparkles, AlertTriangle, ChevronRight, Settings, PanelLeftClose, PanelLeft, Shield, HelpCircle, MessageSquare, CreditCard as CreditCardIcon, Wand2 } from 'lucide-react';
 import { UserButton, SignedIn, SignedOut } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { WorkflowPanel } from '@/components/WorkflowPanel';
@@ -162,19 +162,23 @@ export default function Home() {
       number: 1,
       title: 'Your Writing Project',
       description: 'What do you want to create?',
-      complete: initialPrompt.trim().length > 0
+      complete: initialPrompt.trim().length > 0,
+      isClickable: true, // Always clickable from step 2
     },
     {
       number: 2,
       title: 'Configure Workflow',
       description: 'Set up your editorial team',
-      complete: activeRoles.length > 0
+      complete: activeRoles.length > 0,
+      isClickable: initialPrompt.trim().length > 0, // Only clickable when prompt has text
     },
     {
       number: 3,
-      title: 'Generate',
-      description: 'Watch agents collaborate',
-      complete: sessionState !== null && !isRunning
+      title: 'Watch the Magic!',
+      description: 'Watch your editorial team go to work!',
+      complete: sessionState !== null && !isRunning,
+      isClickable: false, // Never clickable - use Generate button
+      isDestination: true, // Visual differentiation
     },
   ];
 
@@ -354,40 +358,80 @@ export default function Home() {
                     {steps.map((step, index) => {
                       const isActive = currentStep === step.number;
                       const isPast = currentStep > step.number || step.complete;
+                      const canClick = step.isClickable && !isRunning && !isActive;
+                      const isDestination = 'isDestination' in step && step.isDestination;
 
                       return (
                         <div key={step.number} className="flex items-center">
-                          <button
-                            onClick={() => handleStepChange(step.number)}
-                            disabled={isRunning}
-                            className={clsx(
-                              'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200',
-                              isActive
-                                ? 'bg-white shadow-lg shadow-violet-500/10 border-2 border-violet-200'
-                                : 'hover:bg-white/50',
-                              isRunning && 'cursor-not-allowed opacity-50'
-                            )}
-                          >
-                            <div className={clsx(
-                              'w-10 h-10 rounded-xl flex items-center justify-center transition-all text-xl font-bold',
-                              isActive
-                                ? 'bg-gradient-to-br from-violet-600 to-violet-500 text-white shadow-lg shadow-violet-500/30'
-                                : isPast
-                                  ? 'bg-emerald-100 text-emerald-600'
-                                  : 'bg-zinc-100 text-zinc-400'
-                            )}>
-                              {step.number}
-                            </div>
-                            <div className="text-left">
-                              <p className={clsx(
-                                'text-sm font-semibold',
-                                isActive ? 'text-zinc-900' : 'text-zinc-500'
+                          {/* Step 3 (destination) - non-clickable div */}
+                          {isDestination ? (
+                            <div
+                              className={clsx(
+                                'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 cursor-default',
+                                isActive
+                                  ? 'bg-white shadow-lg shadow-amber-500/10 border-2 border-amber-200'
+                                  : 'opacity-60'
+                              )}
+                            >
+                              <div className={clsx(
+                                'w-10 h-10 rounded-xl flex items-center justify-center transition-all',
+                                isActive
+                                  ? 'bg-gradient-to-br from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30'
+                                  : 'bg-amber-100/50 text-amber-400 border-2 border-dashed border-amber-200'
                               )}>
-                                {step.title}
-                              </p>
-                              <p className="text-xs text-zinc-400">{step.description}</p>
+                                <Wand2 className="w-5 h-5" />
+                              </div>
+                              <div className="text-left">
+                                <p className={clsx(
+                                  'text-sm font-semibold italic',
+                                  isActive ? 'text-zinc-900' : 'text-zinc-500'
+                                )}>
+                                  {step.title}
+                                </p>
+                                <p className={clsx(
+                                  'text-xs italic',
+                                  isActive ? 'text-zinc-500' : 'text-zinc-400'
+                                )}>{step.description}</p>
+                              </div>
                             </div>
-                          </button>
+                          ) : (
+                            /* Steps 1 and 2 - clickable buttons */
+                            <button
+                              onClick={() => canClick && handleStepChange(step.number)}
+                              disabled={!canClick}
+                              className={clsx(
+                                'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group',
+                                isActive
+                                  ? 'bg-white shadow-lg shadow-violet-500/10 border-2 border-violet-200'
+                                  : canClick
+                                    ? 'hover:bg-white/50 cursor-pointer'
+                                    : 'cursor-default',
+                                isRunning && 'cursor-not-allowed opacity-50'
+                              )}
+                            >
+                              <div className={clsx(
+                                'w-10 h-10 rounded-xl flex items-center justify-center transition-all text-xl font-bold',
+                                isActive
+                                  ? 'bg-gradient-to-br from-violet-600 to-violet-500 text-white shadow-lg shadow-violet-500/30'
+                                  : isPast
+                                    ? 'bg-emerald-100 text-emerald-600'
+                                    : 'bg-zinc-100 text-zinc-400',
+                                canClick && 'group-hover:scale-105'
+                              )}>
+                                {step.number}
+                              </div>
+                              <div className="text-left">
+                                <p className={clsx(
+                                  'text-sm font-semibold transition-all',
+                                  isActive ? 'text-zinc-900' : 'text-zinc-500',
+                                  canClick && 'group-hover:text-violet-600 group-hover:underline underline-offset-2'
+                                )}>
+                                  {step.title}
+                                </p>
+                                <p className="text-xs text-zinc-400">{step.description}</p>
+                              </div>
+                            </button>
+                          )}
 
                           {index < steps.length - 1 && (
                             <ChevronRight className={clsx(
@@ -405,7 +449,7 @@ export default function Home() {
               {/* Content Area */}
               <div className="animate-fade-in">
                 {currentStep === 1 && <SessionSetup onNext={() => setCurrentStep(2)} />}
-                {currentStep === 2 && <WorkflowPanel onGenerate={handleStart} />}
+                {currentStep === 2 && <WorkflowPanel onGenerate={handleStart} onBack={() => setCurrentStep(1)} />}
                 {currentStep === 3 && <ResultsView />}
               </div>
             </main>

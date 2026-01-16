@@ -199,8 +199,8 @@ export function ReferenceMaterials() {
             <Paperclip className="h-5 w-5 text-zinc-600" />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iv.</span> Do you have reference materials?</h3>
-            <p className="text-sm text-zinc-500">Optional - upload style guides, outlines, or related documents (up to 9)</p>
+            <h3 className="font-semibold text-zinc-900"><span className="text-violet-600">iii.</span> Do you have reference materials?</h3>
+            <p className="text-sm text-zinc-700">Style guides, example documents, research, or outlines. The writer will use these as context, not as text to revise.</p>
           </div>
           {files.length > 0 && (
             <span className={clsx(
@@ -260,7 +260,7 @@ export function ReferenceMaterials() {
               </>
             )}
           </p>
-          <p className="text-xs text-zinc-400 mt-1">
+          <p className="text-xs text-zinc-500 mt-1">
             Word, PDF, Text, or Markdown
           </p>
         </div>
@@ -300,7 +300,7 @@ export function ReferenceMaterials() {
                       <p className="font-medium text-sm text-zinc-900">
                         {file.filename}
                       </p>
-                      <p className="text-xs text-zinc-400">
+                      <p className="text-xs text-zinc-600">
                         {file.wordCount.toLocaleString()} words
                       </p>
                     </div>
@@ -357,18 +357,16 @@ export function ReferenceMaterials() {
           </div>
         )}
 
-        {/* Reference Instructions - shown when files are uploaded */}
-        {files.length > 0 && (
-          <div className="mt-4">
-            <Textarea
-              label="How should the agents use these materials?"
-              value={referenceInstructions}
-              onChange={(e) => setReferenceInstructions(e.target.value)}
-              placeholder="Example: The Atlantic article is a style model - match its tone and structure. The research PDF contains data to cite. The outline shows the required sections."
-              rows={3}
-            />
-          </div>
-        )}
+        {/* Reference Instructions */}
+        <div className="mt-4">
+          <Textarea
+            label="How should the writer use these materials?"
+            value={referenceInstructions}
+            onChange={(e) => setReferenceInstructions(e.target.value)}
+            placeholder="e.g., Match the tone of the brand guide, use the research doc for statistics only, follow the outline structure"
+            rows={2}
+          />
+        </div>
 
       </CardContent>
     </Card>

@@ -56,6 +56,7 @@ export interface SessionConfig {
   working_document: string;
   reference_documents: Record<string, string>;
   reference_instructions?: string;
+  draft_treatment?: string | null;
 }
 
 export interface CriterionScore {

@@ -114,7 +114,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   workingDocument: '',
   referenceDocuments: {},
   referenceInstructions: '',
-  maxRounds: 3,
+  maxRounds: 2,
   scoreThreshold: null,
   projectId: null,
 
@@ -129,6 +129,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     customAudience: '',
     lengthRange: '',
     readingLevel: '',
+    draftTreatment: 'moderate_revision',
   },
 
   sessionId: null,
@@ -264,6 +265,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     try {
       const sessionId = generateId();
 
+      const { presetSelections } = get();
+
       const config: SessionConfig = {
         session_id: sessionId,
         title,
@@ -277,6 +280,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         working_document: workingDocument,
         reference_documents: referenceDocuments,
         reference_instructions: referenceInstructions,
+        // Only include draft_treatment if there's a working document
+        draft_treatment: workingDocument ? presetSelections.draftTreatment || null : null,
       };
 
       // Create session
@@ -308,6 +313,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       projectId,
       handleStreamEvent,
       getActiveWorkflowAgents,
+      presetSelections,
     } = get();
 
     if (!initialPrompt.trim()) {
@@ -364,6 +370,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         working_document: workingDocument,
         reference_documents: referenceDocuments,
         reference_instructions: referenceInstructions,
+        // Only include draft_treatment if there's a working document
+        draft_treatment: workingDocument ? presetSelections.draftTreatment || null : null,
       };
 
       // Create session first
@@ -763,7 +771,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       workingDocument: '',
       referenceDocuments: {},
       referenceInstructions: '',
-      maxRounds: 3,
+      maxRounds: 2,
       scoreThreshold: null,
       projectId: null,
       workflowRoles: getInitialWorkflowState(),
@@ -774,6 +782,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         customAudience: '',
         lengthRange: '',
         readingLevel: '',
+        draftTreatment: 'moderate_revision',
       },
       sessionId: null,
       sessionState: null,

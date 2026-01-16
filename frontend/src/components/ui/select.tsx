@@ -3,10 +3,12 @@
 import * as SelectPrimitive from '@radix-ui/react-select';
 import { ChevronDown, Check } from 'lucide-react';
 import { clsx } from 'clsx';
+import { TooltipLabel } from './tooltip';
 
 interface SelectOption {
   value: string;
   label: string;
+  tooltip?: string;
 }
 
 interface SelectProps {
@@ -14,6 +16,7 @@ interface SelectProps {
   onValueChange: (value: string) => void;
   options: SelectOption[];
   label?: string;
+  labelTooltip?: string;
   placeholder?: string;
   className?: string;
 }
@@ -23,15 +26,20 @@ export function Select({
   onValueChange,
   options,
   label,
+  labelTooltip,
   placeholder = 'Select...',
   className,
 }: SelectProps) {
   return (
     <div className={clsx('w-full', className)}>
       {label && (
-        <label className="block text-sm font-medium text-zinc-700 mb-2">
-          {label}
-        </label>
+        labelTooltip ? (
+          <TooltipLabel label={label} tooltip={labelTooltip} />
+        ) : (
+          <label className="block text-sm font-medium text-zinc-700 mb-2">
+            {label}
+          </label>
+        )
       )}
       <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
         <SelectPrimitive.Trigger
@@ -64,14 +72,19 @@ export function Select({
                   key={option.value}
                   value={option.value}
                   className={clsx(
-                    'flex items-center px-3 py-2 rounded-lg cursor-pointer text-sm',
+                    'flex items-start px-3 py-2 rounded-lg cursor-pointer text-sm',
                     'outline-none select-none',
                     'data-[highlighted]:bg-violet-50',
                     'data-[state=checked]:text-violet-600 data-[state=checked]:font-medium'
                   )}
                 >
-                  <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
-                  <SelectPrimitive.ItemIndicator className="ml-auto">
+                  <div className="flex-1 min-w-0">
+                    <SelectPrimitive.ItemText>{option.label}</SelectPrimitive.ItemText>
+                    {option.tooltip && (
+                      <p className="text-xs text-zinc-500 mt-0.5 font-normal">{option.tooltip}</p>
+                    )}
+                  </div>
+                  <SelectPrimitive.ItemIndicator className="ml-2 mt-0.5">
                     <Check className="h-4 w-4 text-violet-600" />
                   </SelectPrimitive.ItemIndicator>
                 </SelectPrimitive.Item>
