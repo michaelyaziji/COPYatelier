@@ -3,7 +3,7 @@
 
 databases:
   - name: copyatelier-db
-    plan: free  # Options: free, basic ($7/mo), standard, pro
+    plan: free
     databaseName: atelier
     user: atelier
 
@@ -19,17 +19,12 @@ services:
     buildCommand: npm install && npm run build
     startCommand: npm run start
     envVars:
-      # Backend API URL - will be set after backend deploys
       - key: NEXT_PUBLIC_API_URL
         value: https://copyatelier-backend.onrender.com/api/v1
-
-      # Clerk Authentication (get from https://dashboard.clerk.com)
       - key: NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
-        value: REPLACE_ME  # Clerk publishable key (pk_test_... or pk_live_...)
+        value: pk_test_d2VsY29tZS1xdWV0emFsLTUwLmNsZXJrLmFjY291bnRzLmRldiQ
       - key: CLERK_SECRET_KEY
-        value: REPLACE_ME  # Clerk secret key (sk_test_... or sk_live_...)
-
-      # Node environment
+        value: sk_test_kfAuRihjGhtvmSIide4wsK07pfVg5U1QqC9qrTj848
       - key: NODE_ENV
         value: production
 
@@ -44,13 +39,11 @@ services:
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
-      # Database - automatically uses the connected PostgreSQL database
+      # Database - auto-linked from copyatelier-db
       - key: DATABASE_URL
         fromDatabase:
           name: copyatelier-db
           property: connectionString
-        # Note: Render provides postgres:// but asyncpg needs postgresql+asyncpg://
-        # You may need to transform this in your app or use a build script
 
       # Application Settings
       - key: ENVIRONMENT
@@ -64,33 +57,33 @@ services:
 
       # AI Provider API Keys
       - key: ANTHROPIC_API_KEY
-        value: REPLACE_ME  # Get from https://console.anthropic.com
+        value: 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
       - key: GOOGLE_API_KEY
-        value: REPLACE_ME  # Get from https://makersuite.google.com/app/apikey
+        value: AIzaSyCPkuy-exAm5i3IbYlDI35H0uQpZOld7ak
       - key: OPENAI_API_KEY
-        value: REPLACE_ME  # Get from https://platform.openai.com/api-keys
+        value: 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
       - key: PERPLEXITY_API_KEY
-        value: REPLACE_ME  # Get from https://www.perplexity.ai/settings/api
+        value: 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
 
-      # Clerk Authentication (get from https://dashboard.clerk.com)
+      # Clerk Authentication
       - key: CLERK_ISSUER
-        value: REPLACE_ME  # e.g., https://your-app.clerk.accounts.dev
+        value: https://welcome-quetzal-50.clerk.accounts.dev
       - key: CLERK_JWKS_URL
-        value: REPLACE_ME  # e.g., https://your-app.clerk.accounts.dev/.well-known/jwks.json
+        value: https://welcome-quetzal-50.clerk.accounts.dev/.well-known/jwks.json
 
-      # Stripe Configuration (get from https://dashboard.stripe.com/apikeys)
+      # Stripe Configuration
       - key: STRIPE_SECRET_KEY
-        value: REPLACE_ME  # sk_test_... for staging
+        value: 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
       - key: STRIPE_WEBHOOK_SECRET
-        value: REPLACE_ME  # whsec_... (create webhook pointing to /api/v1/billing/webhook)
+        value: whsec_1Crq9MJR9OPZo5Biddye24jVZ1roQC00
       - key: STRIPE_STARTER_PRICE_ID
-        value: REPLACE_ME  # price_... for Starter plan
+        value: price_1SoOEcBl0wLtGjTQxskRytZe
       - key: STRIPE_PRO_PRICE_ID
-        value: REPLACE_ME  # price_... for Pro plan
+        value: price_1SoOG0BlOwLtGjTQoFw0o0AC
       - key: STRIPE_STARTER_YEARLY_PRICE_ID
-        value: REPLACE_ME  # price_... for Starter yearly (optional)
+        value: price_1SoOFWBl0wLtGjTQBK7cgMVJ
       - key: STRIPE_PRO_YEARLY_PRICE_ID
-        value: REPLACE_ME  # price_... for Pro yearly (optional)
+        value: price_1SoOGGBlOwLtGjTQeK841ECf
 
       # Frontend URL (for Stripe redirects)
       - key: FRONTEND_URL
@@ -98,7 +91,7 @@ services:
 
       # CORS Configuration
       - key: CORS_ORIGINS
-        value: https://copyatelier-frontend.onrender.com
+        value: https://copyatelier-frontend.onrender.com,http://localhost:3000
       - key: CORS_ALLOW_CREDENTIALS
         value: "true"
 
@@ -108,10 +101,19 @@ services:
       - key: SMTP_PORT
         value: "465"
       - key: SMTP_USERNAME
-        value: REPLACE_ME  # e.g., info@atelierwritereditor.com
+        value: info@atelierwritereditor.com
       - key: SMTP_PASSWORD
-        value: REPLACE_ME  # Email account password
+        value: Compassion100!
       - key: SMTP_FROM_EMAIL
-        value: "Atelier <info@atelierwritereditor.com>"
+        value: Atelier <info@atelierwritereditor.com>
       - key: SMTP_USE_SSL
         value: "true"
+
+# =============================================================================
+# POST-DEPLOYMENT NOTE
+# =============================================================================
+# If Render adds a suffix to your service names (e.g., copyatelier-frontend-abc1),
+# update these URLs in the Render dashboard:
+#   - NEXT_PUBLIC_API_URL (frontend)
+#   - CORS_ORIGINS (backend)
+#   - FRONTEND_URL (backend)
