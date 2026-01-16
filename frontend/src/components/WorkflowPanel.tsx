@@ -424,7 +424,7 @@ function GenerateSection({ onGenerate, onBack, activeProviders, activeRoles, max
       {/* Confirmation Card */}
       <div className="bg-gradient-to-b from-violet-50/80 to-zinc-50 rounded-xl border border-violet-200/50 p-5 shadow-sm">
         {/* Workflow Summary */}
-        <div className="space-y-1 mb-4">
+        <div className="space-y-1 mb-4 text-center">
           <p className="text-sm text-zinc-700">
             <span className="font-medium text-zinc-900">Your workflow:</span>{' '}
             {buildWorkflowSummary() || 'No agents selected'}
@@ -442,12 +442,13 @@ function GenerateSection({ onGenerate, onBack, activeProviders, activeRoles, max
 
         {/* Action Buttons */}
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-violet-100">
-          {/* Back button - secondary style */}
+          {/* Back button - outlined style */}
           {onBack ? (
             <Button
-              variant="ghost"
+              variant="outline"
+              size="lg"
               onClick={onBack}
-              className="gap-2 text-zinc-600 hover:text-zinc-900 hover:bg-white/50"
+              className="gap-2 border-violet-600 text-violet-600 hover:bg-violet-50 hover:text-violet-700 hover:border-violet-700"
             >
               <ArrowLeft className="h-4 w-4" />
               <span className="hidden sm:inline">Back to Project</span>
