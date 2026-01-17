@@ -169,6 +169,10 @@ class ProjectModel(Base):
     name = Column(String(200), nullable=False)
     description = Column(Text, nullable=True)
 
+    # Project-level instructions (like Claude's Memory feature)
+    # These are prepended to reference_instructions for all sessions in this project
+    instructions = Column(Text, nullable=True)
+
     # Default configuration for new sessions in this project
     default_agent_config = Column(JSON, nullable=True)
 
@@ -186,9 +190,61 @@ class ProjectModel(Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    files = relationship(
+        "ProjectFileModel",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     def __repr__(self) -> str:
         return f"<Project(id={self.id}, name={self.name})>"
+
+
+class ProjectFileModel(Base):
+    """
+    Database model for project files.
+
+    Stores text content extracted from uploaded files (no binary storage).
+    Files are shared across all sessions within a project.
+    """
+
+    __tablename__ = "project_files"
+
+    # Primary key
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+
+    # Project association
+    project_id = Column(
+        String(36),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    # File metadata
+    filename = Column(String(255), nullable=False)
+    original_file_type = Column(String(50), nullable=False)  # pdf, docx, txt, md
+    description = Column(Text, nullable=True)  # User-provided description
+
+    # Extracted text content
+    content = Column(Text, nullable=False)
+    char_count = Column(Integer, nullable=True)
+    word_count = Column(Integer, nullable=True)
+
+    # Timestamps
+    created_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    # Relationships
+    project = relationship("ProjectModel", back_populates="files")
+
+    # Indexes
+    __table_args__ = (
+        Index("idx_project_files_project", "project_id"),
+    )
+
+    def __repr__(self) -> str:
+        return f"<ProjectFile(id={self.id}, filename={self.filename}, project_id={self.project_id})>"
 
 
 class SessionModel(Base):

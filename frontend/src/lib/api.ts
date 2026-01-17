@@ -284,10 +284,15 @@ class ApiClient {
     return this.request(`/projects${params}`);
   }
 
-  async createProject(name: string, description?: string): Promise<Project> {
-    const params = new URLSearchParams({ name });
-    if (description) params.append('description', description);
-    return this.request(`/projects?${params.toString()}`, {
+  async createProject(params: {
+    name: string;
+    description?: string;
+    instructions?: string;
+  }): Promise<Project> {
+    const searchParams = new URLSearchParams({ name: params.name });
+    if (params.description) searchParams.append('description', params.description);
+    if (params.instructions) searchParams.append('instructions', params.instructions);
+    return this.request(`/projects?${searchParams.toString()}`, {
       method: 'POST',
     });
   }
@@ -299,10 +304,12 @@ class ApiClient {
   async updateProject(projectId: string, params: {
     name?: string;
     description?: string;
+    instructions?: string;
   }): Promise<Project> {
     const searchParams = new URLSearchParams();
     if (params.name) searchParams.append('name', params.name);
     if (params.description) searchParams.append('description', params.description);
+    if (params.instructions !== undefined) searchParams.append('instructions', params.instructions);
     return this.request(`/projects/${projectId}?${searchParams.toString()}`, {
       method: 'PATCH',
     });
@@ -340,6 +347,81 @@ class ApiClient {
     return this.request(`/sessions/${sessionId}/move${params}`, {
       method: 'POST',
     });
+  }
+
+  // Project Files
+  async listProjectFiles(projectId: string): Promise<ProjectFileListResponse> {
+    return this.request(`/projects/${projectId}/files`);
+  }
+
+  async uploadProjectFile(
+    projectId: string,
+    file: File,
+    description?: string
+  ): Promise<ProjectFile> {
+    const formData = new FormData();
+    formData.append('file', file);
+    if (description) {
+      formData.append('description', description);
+    }
+
+    const url = `${this.baseUrl}/projects/${projectId}/files`;
+    const authHeaders = await this.getAuthHeaders();
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        ...authHeaders,
+        // Don't set Content-Type for FormData - browser will set it with boundary
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Unknown error' }));
+      let errorMessage = `HTTP ${response.status}`;
+      if (error.detail) {
+        if (typeof error.detail === 'string') {
+          errorMessage = error.detail;
+        } else if (error.detail.message) {
+          errorMessage = error.detail.message;
+        }
+      }
+      throw new Error(errorMessage);
+    }
+
+    return response.json();
+  }
+
+  async getProjectFile(projectId: string, fileId: string): Promise<ProjectFileWithContent> {
+    return this.request(`/projects/${projectId}/files/${fileId}`);
+  }
+
+  async updateProjectFile(
+    projectId: string,
+    fileId: string,
+    params: { filename?: string; description?: string }
+  ): Promise<ProjectFile> {
+    const searchParams = new URLSearchParams();
+    if (params.filename) searchParams.append('filename', params.filename);
+    if (params.description !== undefined) searchParams.append('description', params.description);
+    return this.request(`/projects/${projectId}/files/${fileId}?${searchParams.toString()}`, {
+      method: 'PATCH',
+    });
+  }
+
+  async deleteProjectFile(projectId: string, fileId: string): Promise<{
+    status: string;
+    file_id: string;
+    project_id: string;
+  }> {
+    return this.request(`/projects/${projectId}/files/${fileId}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getProjectStorage(projectId: string): Promise<ProjectStorageLimits> {
+    return this.request(`/projects/${projectId}/storage`);
   }
 
   async deleteSession(sessionId: string): Promise<{ status: string }> {
@@ -637,11 +719,13 @@ export interface Project {
   user_id: string;
   name: string;
   description: string | null;
+  instructions: string | null;
   default_agent_config: Array<Record<string, unknown>> | null;
   archived_at: string | null;
   created_at: string;
   updated_at: string;
   session_count: number;
+  file_count: number;
 }
 
 export interface ProjectListResponse {
@@ -657,6 +741,38 @@ export interface ProjectSession {
   termination_reason: string | null;
   created_at: string;
   completed_at: string | null;
+}
+
+// Project File types
+export interface ProjectFile {
+  id: string;
+  project_id: string;
+  filename: string;
+  original_file_type: string;
+  description: string | null;
+  char_count: number | null;
+  word_count: number | null;
+  created_at: string;
+}
+
+export interface ProjectFileWithContent extends ProjectFile {
+  content: string;
+  updated_at: string;
+}
+
+export interface ProjectFileListResponse {
+  files: ProjectFile[];
+  total: number;
+}
+
+export interface ProjectStorageLimits {
+  file_count: number;
+  total_chars: number;
+  max_files: number;
+  max_chars: number;
+  can_add_file: boolean;
+  can_add_content: boolean;
+  usage_percent: number;
 }
 
 // Admin types

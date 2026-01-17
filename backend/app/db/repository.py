@@ -16,6 +16,7 @@ from .models import (
     UserModel,
     UserProfileModel,
     ProjectModel,
+    ProjectFileModel,
     CreditBalanceModel,
     CreditTransactionModel,
     SubscriptionModel,
@@ -803,6 +804,7 @@ class ProjectRepository:
         user_id: str,
         name: str,
         description: Optional[str] = None,
+        instructions: Optional[str] = None,
         default_agent_config: Optional[list] = None,
     ) -> ProjectModel:
         """
@@ -812,6 +814,7 @@ class ProjectRepository:
             user_id: User ID string
             name: Project name
             description: Optional project description
+            instructions: Optional project-level instructions (like Claude's Memory)
             default_agent_config: Optional default agent configuration
 
         Returns:
@@ -821,6 +824,7 @@ class ProjectRepository:
             user_id=user_id,
             name=name,
             description=description,
+            instructions=instructions,
             default_agent_config=default_agent_config,
         )
         self.db.add(project)
@@ -895,6 +899,7 @@ class ProjectRepository:
         project_id: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
+        instructions: Optional[str] = None,
         default_agent_config: Optional[list] = None,
     ) -> Optional[ProjectModel]:
         """
@@ -904,6 +909,7 @@ class ProjectRepository:
             project_id: Project ID string
             name: Optional new name
             description: Optional new description
+            instructions: Optional new instructions
             default_agent_config: Optional new default agent config
 
         Returns:
@@ -915,6 +921,8 @@ class ProjectRepository:
             values["name"] = name
         if description is not None:
             values["description"] = description
+        if instructions is not None:
+            values["instructions"] = instructions
         if default_agent_config is not None:
             values["default_agent_config"] = default_agent_config
 
@@ -1068,6 +1076,287 @@ class ProjectRepository:
             .order_by(SessionModel.created_at.desc())
         )
         return list(result.scalars().all())
+
+    async def get_file_count(self, project_id: str) -> int:
+        """
+        Get the number of files in a project.
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            Number of files
+        """
+        result = await self.db.execute(
+            select(func.count(ProjectFileModel.id))
+            .where(ProjectFileModel.project_id == project_id)
+        )
+        return result.scalar() or 0
+
+
+class ProjectFileRepository:
+    """
+    Repository for project file database operations.
+
+    Handles project file CRUD and content management.
+    Files store extracted text content only (no binary storage).
+    """
+
+    # Storage limits
+    MAX_FILES_PER_PROJECT = 20
+    MAX_PROJECT_TOTAL_CHARS = 1000000  # ~250K words
+    MAX_PROJECT_CONTEXT_CHARS = 500000  # ~125K tokens for session context
+
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    # ============ File CRUD ============
+
+    async def create(
+        self,
+        project_id: str,
+        filename: str,
+        content: str,
+        original_file_type: str,
+        description: Optional[str] = None,
+    ) -> ProjectFileModel:
+        """
+        Create a new project file.
+
+        Args:
+            project_id: Project ID string
+            filename: Original filename
+            content: Extracted text content
+            original_file_type: File type (pdf, docx, txt, md)
+            description: Optional file description
+
+        Returns:
+            Created ProjectFileModel
+        """
+        # Calculate word and char counts
+        char_count = len(content) if content else 0
+        word_count = len(content.split()) if content else 0
+
+        file = ProjectFileModel(
+            project_id=project_id,
+            filename=filename,
+            content=content,
+            original_file_type=original_file_type,
+            description=description,
+            char_count=char_count,
+            word_count=word_count,
+        )
+        self.db.add(file)
+        await self.db.commit()
+        await self.db.refresh(file)
+
+        logger.info(f"Created project file {file.id} for project {project_id}")
+        return file
+
+    async def get(self, file_id: str) -> Optional[ProjectFileModel]:
+        """
+        Get a project file by ID.
+
+        Args:
+            file_id: File ID string
+
+        Returns:
+            ProjectFileModel or None if not found
+        """
+        result = await self.db.execute(
+            select(ProjectFileModel).where(ProjectFileModel.id == file_id)
+        )
+        return result.scalar_one_or_none()
+
+    async def get_for_project(
+        self,
+        file_id: str,
+        project_id: str,
+    ) -> Optional[ProjectFileModel]:
+        """
+        Get a file by ID, ensuring it belongs to the specified project.
+
+        Args:
+            file_id: File ID string
+            project_id: Project ID string
+
+        Returns:
+            ProjectFileModel or None if not found or doesn't belong to project
+        """
+        result = await self.db.execute(
+            select(ProjectFileModel)
+            .where(
+                ProjectFileModel.id == file_id,
+                ProjectFileModel.project_id == project_id,
+            )
+        )
+        return result.scalar_one_or_none()
+
+    async def list_for_project(self, project_id: str) -> list[ProjectFileModel]:
+        """
+        List all files in a project (metadata only, no content loaded).
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            List of ProjectFileModel (without content for efficiency)
+        """
+        result = await self.db.execute(
+            select(ProjectFileModel)
+            .where(ProjectFileModel.project_id == project_id)
+            .order_by(ProjectFileModel.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    async def update(
+        self,
+        file_id: str,
+        filename: Optional[str] = None,
+        description: Optional[str] = None,
+    ) -> Optional[ProjectFileModel]:
+        """
+        Update a project file's metadata.
+
+        Args:
+            file_id: File ID string
+            filename: Optional new filename
+            description: Optional new description
+
+        Returns:
+            Updated ProjectFileModel or None if not found
+        """
+        values = {"updated_at": datetime.now(tz.utc)}
+
+        if filename is not None:
+            values["filename"] = filename
+        if description is not None:
+            values["description"] = description
+
+        await self.db.execute(
+            update(ProjectFileModel)
+            .where(ProjectFileModel.id == file_id)
+            .values(**values)
+        )
+        await self.db.commit()
+
+        return await self.get(file_id)
+
+    async def delete(self, file_id: str) -> bool:
+        """
+        Delete a project file.
+
+        Args:
+            file_id: File ID string
+
+        Returns:
+            True if deleted, False if not found
+        """
+        result = await self.db.execute(
+            delete(ProjectFileModel).where(ProjectFileModel.id == file_id)
+        )
+        await self.db.commit()
+        return result.rowcount > 0
+
+    # ============ Storage Management ============
+
+    async def get_file_count(self, project_id: str) -> int:
+        """
+        Get the number of files in a project.
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            Number of files
+        """
+        result = await self.db.execute(
+            select(func.count(ProjectFileModel.id))
+            .where(ProjectFileModel.project_id == project_id)
+        )
+        return result.scalar() or 0
+
+    async def get_total_chars(self, project_id: str) -> int:
+        """
+        Get total character count for all files in a project.
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            Total character count
+        """
+        result = await self.db.execute(
+            select(func.coalesce(func.sum(ProjectFileModel.char_count), 0))
+            .where(ProjectFileModel.project_id == project_id)
+        )
+        return result.scalar() or 0
+
+    async def check_storage_limits(
+        self,
+        project_id: str,
+        new_content_chars: int = 0,
+    ) -> dict:
+        """
+        Check if project storage limits are exceeded.
+
+        Args:
+            project_id: Project ID string
+            new_content_chars: Characters in new content to add
+
+        Returns:
+            Dict with limit status and usage info
+        """
+        file_count = await self.get_file_count(project_id)
+        total_chars = await self.get_total_chars(project_id)
+
+        return {
+            "file_count": file_count,
+            "total_chars": total_chars,
+            "max_files": self.MAX_FILES_PER_PROJECT,
+            "max_chars": self.MAX_PROJECT_TOTAL_CHARS,
+            "can_add_file": file_count < self.MAX_FILES_PER_PROJECT,
+            "can_add_content": (total_chars + new_content_chars) <= self.MAX_PROJECT_TOTAL_CHARS,
+            "usage_percent": round((total_chars / self.MAX_PROJECT_TOTAL_CHARS) * 100, 1),
+        }
+
+    # ============ Content Retrieval ============
+
+    async def get_all_content_for_project(self, project_id: str) -> dict[str, str]:
+        """
+        Get all file content for a project as a dictionary.
+
+        Used when creating a new session to merge project files
+        into the session's reference_documents.
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            Dict mapping "[Project] filename" to content
+        """
+        result = await self.db.execute(
+            select(ProjectFileModel.filename, ProjectFileModel.content)
+            .where(ProjectFileModel.project_id == project_id)
+        )
+
+        # Prefix with "[Project] " to distinguish from session files
+        return {
+            f"[Project] {row.filename}": row.content
+            for row in result
+        }
+
+    async def get_total_content_size(self, project_id: str) -> int:
+        """
+        Get total size of all file content for context size checking.
+
+        Args:
+            project_id: Project ID string
+
+        Returns:
+            Total character count of all content
+        """
+        return await self.get_total_chars(project_id)
 
 
 class CreditRepository:

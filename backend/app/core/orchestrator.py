@@ -77,13 +77,16 @@ class Orchestrator:
         """
         prompt_parts = []
 
+        # 0. Project/reference instructions (always include if present)
+        if self.state.config.reference_instructions:
+            prompt_parts.append("=== PROJECT INSTRUCTIONS ===\n")
+            prompt_parts.append("(Follow these instructions for all outputs in this project.)\n\n")
+            prompt_parts.append(f"{self.state.config.reference_instructions}\n\n")
+
         # 1. Reference materials (supporting documents - NOT what we're editing)
         if self.state.config.reference_documents:
             prompt_parts.append("=== REFERENCE MATERIALS ===\n")
             prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
-            # Include user instructions about how to use the reference documents
-            if self.state.config.reference_instructions:
-                prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
             for filename, content in self.state.config.reference_documents.items():
                 prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
             prompt_parts.append("\n")

@@ -8,13 +8,15 @@ import { Button } from '@/components/ui/button';
 import { WorkflowPanel } from '@/components/WorkflowPanel';
 import { SessionSetup } from '@/components/SessionSetup';
 import { ResultsView } from '@/components/ResultsView';
-import { SessionsSidebar } from '@/components/SessionsSidebar';
+import { CombinedSidebar } from '@/components/CombinedSidebar';
+import { ProjectView } from '@/components/ProjectView';
+import { CreateProjectModal } from '@/components/CreateProjectModal';
 import { CreditDisplay } from '@/components/CreditDisplay';
 import { LandingPage } from '@/components/LandingPage';
 import { FeedbackWidget } from '@/components/FeedbackWidget';
 import { useSessionStore } from '@/store/session';
 import { useCreditsStore } from '@/store/credits';
-import { api } from '@/lib/api';
+import { api, Project } from '@/lib/api';
 import { clsx } from 'clsx';
 
 type Step = 1 | 2 | 3;
@@ -26,6 +28,8 @@ export default function Home() {
   const [backendConnected, setBackendConnected] = useState<boolean | null>(null);
   const [showSidebar, setShowSidebar] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [viewingProjectId, setViewingProjectId] = useState<string | null>(null);
+  const [showCreateProjectModal, setShowCreateProjectModal] = useState(false);
 
   const {
     workflowRoles,
@@ -126,13 +130,38 @@ export default function Home() {
   };
 
   const handleSelectSession = async (sessionId: string) => {
+    setViewingProjectId(null); // Clear project view when selecting a session
     await loadSession(sessionId);
     setCurrentStep(3);
   };
 
-  const handleNewSession = () => {
+  const handleSelectProject = (projectId: string) => {
+    setViewingProjectId(projectId);
+  };
+
+  const handleNewSession = (projectId?: string | null) => {
+    setViewingProjectId(null);
     reset();
+    // Set project_id in session store
+    useSessionStore.setState({ projectId: projectId || null });
     setCurrentStep(1);
+  };
+
+  const handleNewProject = () => {
+    setShowCreateProjectModal(true);
+  };
+
+  const handleProjectCreated = (project: Project) => {
+    // Navigate to the newly created project
+    setViewingProjectId(project.id);
+  };
+
+  const handleCreateSessionInProject = (projectId: string) => {
+    handleNewSession(projectId);
+  };
+
+  const handleBackFromProject = () => {
+    setViewingProjectId(null);
   };
 
   // Check if user has sufficient credits (default to true if no estimate yet)
@@ -330,12 +359,15 @@ export default function Home() {
 
           {/* Main Content with Optional Sidebar */}
           <div className="flex min-h-[calc(100vh-73px)]">
-            {/* Sessions Sidebar */}
+            {/* Combined Sidebar with Projects and Sessions */}
             {showSidebar && (
-              <SessionsSidebar
+              <CombinedSidebar
                 onSelectSession={handleSelectSession}
+                onSelectProject={handleSelectProject}
                 onNewSession={handleNewSession}
+                onNewProject={handleNewProject}
                 currentSessionId={sessionState?.config.session_id}
+                currentProjectId={viewingProjectId}
               />
             )}
 
@@ -448,12 +480,29 @@ export default function Home() {
 
               {/* Content Area */}
               <div className="animate-fade-in">
-                {currentStep === 1 && <SessionSetup onNext={() => setCurrentStep(2)} />}
-                {currentStep === 2 && <WorkflowPanel onGenerate={handleStart} onBack={() => setCurrentStep(1)} />}
-                {currentStep === 3 && <ResultsView />}
+                {viewingProjectId ? (
+                  <ProjectView
+                    projectId={viewingProjectId}
+                    onCreateSession={handleCreateSessionInProject}
+                    onBack={handleBackFromProject}
+                  />
+                ) : (
+                  <>
+                    {currentStep === 1 && <SessionSetup onNext={() => setCurrentStep(2)} />}
+                    {currentStep === 2 && <WorkflowPanel onGenerate={handleStart} onBack={() => setCurrentStep(1)} />}
+                    {currentStep === 3 && <ResultsView />}
+                  </>
+                )}
               </div>
             </main>
           </div>
+
+          {/* Create Project Modal */}
+          <CreateProjectModal
+            isOpen={showCreateProjectModal}
+            onClose={() => setShowCreateProjectModal(false)}
+            onCreated={handleProjectCreated}
+          />
         </div>
 
       </SignedIn>

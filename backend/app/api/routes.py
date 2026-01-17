@@ -146,6 +146,8 @@ async def create_session(
     Create a new orchestration session.
 
     Requires authentication. Session will be associated with the authenticated user.
+    If the session has a project_id, project files and instructions are automatically
+    merged into the session's reference materials.
 
     Args:
         config: Session configuration with agents and orchestration settings
@@ -158,6 +160,49 @@ async def create_session(
     active_agents = [a for a in config.agents if a.is_active]
     if not active_agents:
         raise HTTPException(status_code=400, detail="At least one active agent is required")
+
+    # If session belongs to a project, merge project context
+    if config.project_id:
+        from ..db.repository import ProjectRepository, ProjectFileRepository
+
+        project_repo = ProjectRepository(db)
+        file_repo = ProjectFileRepository(db)
+
+        # Verify project exists and belongs to user
+        project = await project_repo.get_for_user(config.project_id, user.id)
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # Get all project file content
+        project_files = await file_repo.get_all_content_for_project(config.project_id)
+
+        # Check context size limits
+        total_project_chars = await file_repo.get_total_content_size(config.project_id)
+        session_doc_chars = sum(len(v) for v in (config.reference_documents or {}).values())
+        total_context_chars = total_project_chars + session_doc_chars
+
+        if total_context_chars > file_repo.MAX_PROJECT_CONTEXT_CHARS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Combined project and session files exceed context limit ({total_context_chars:,} chars). "
+                       f"Maximum is {file_repo.MAX_PROJECT_CONTEXT_CHARS:,} chars. "
+                       "Remove some files to proceed."
+            )
+
+        # Merge project files into reference_documents (session files take priority)
+        merged_documents = {**project_files, **(config.reference_documents or {})}
+        config.reference_documents = merged_documents
+
+        # Prepend project instructions to reference_instructions
+        if project.instructions:
+            project_instructions = f"[Project Instructions]\n{project.instructions}\n\n"
+            if config.reference_instructions:
+                config.reference_instructions = project_instructions + config.reference_instructions
+            else:
+                config.reference_instructions = project_instructions
+
+        logger.info(f"Merged project context into session: {len(project_files)} files, "
+                   f"instructions={'yes' if project.instructions else 'no'}")
 
     # Credit validation before session creation
     from ..db.repository import CreditRepository
@@ -1143,7 +1188,7 @@ async def list_projects(
         include_archived: Whether to include archived projects
 
     Returns:
-        List of projects with session counts
+        List of projects with session counts and file counts
     """
     from ..db.repository import ProjectRepository
 
@@ -1153,16 +1198,19 @@ async def list_projects(
     project_list = []
     for project in projects:
         session_count = await repo.get_session_count(project.id)
+        file_count = await repo.get_file_count(project.id)
         project_list.append({
             "id": project.id,
             "user_id": project.user_id,
             "name": project.name,
             "description": project.description,
+            "instructions": project.instructions,
             "default_agent_config": project.default_agent_config,
             "archived_at": project.archived_at.isoformat() if project.archived_at else None,
             "created_at": project.created_at.isoformat() if project.created_at else None,
             "updated_at": project.updated_at.isoformat() if project.updated_at else None,
             "session_count": session_count,
+            "file_count": file_count,
         })
 
     return {"projects": project_list, "total": len(project_list)}
@@ -1172,6 +1220,7 @@ async def list_projects(
 async def create_project(
     name: str,
     description: Optional[str] = None,
+    instructions: Optional[str] = None,
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1181,6 +1230,7 @@ async def create_project(
     Args:
         name: Project name
         description: Optional project description
+        instructions: Optional project-level instructions (like Claude's Memory)
 
     Returns:
         Created project data
@@ -1192,6 +1242,7 @@ async def create_project(
         user_id=user.id,
         name=name,
         description=description,
+        instructions=instructions,
     )
 
     return {
@@ -1199,11 +1250,13 @@ async def create_project(
         "user_id": project.user_id,
         "name": project.name,
         "description": project.description,
+        "instructions": project.instructions,
         "default_agent_config": project.default_agent_config,
         "archived_at": None,
         "created_at": project.created_at.isoformat() if project.created_at else None,
         "updated_at": project.updated_at.isoformat() if project.updated_at else None,
         "session_count": 0,
+        "file_count": 0,
     }
 
 
@@ -1214,13 +1267,13 @@ async def get_project(
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """
-    Get a project by ID with session count.
+    Get a project by ID with session count and file count.
 
     Args:
         project_id: Project ID
 
     Returns:
-        Project data with session count
+        Project data with session count and file count
     """
     from ..db.repository import ProjectRepository
 
@@ -1231,17 +1284,20 @@ async def get_project(
         raise HTTPException(status_code=404, detail="Project not found")
 
     session_count = await repo.get_session_count(project.id)
+    file_count = await repo.get_file_count(project.id)
 
     return {
         "id": project.id,
         "user_id": project.user_id,
         "name": project.name,
         "description": project.description,
+        "instructions": project.instructions,
         "default_agent_config": project.default_agent_config,
         "archived_at": project.archived_at.isoformat() if project.archived_at else None,
         "created_at": project.created_at.isoformat() if project.created_at else None,
         "updated_at": project.updated_at.isoformat() if project.updated_at else None,
         "session_count": session_count,
+        "file_count": file_count,
     }
 
 
@@ -1250,6 +1306,7 @@ async def update_project(
     project_id: str,
     name: Optional[str] = None,
     description: Optional[str] = None,
+    instructions: Optional[str] = None,
     user: UserModel = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
@@ -1260,6 +1317,7 @@ async def update_project(
         project_id: Project ID
         name: Optional new name
         description: Optional new description
+        instructions: Optional new instructions
 
     Returns:
         Updated project data
@@ -1278,20 +1336,24 @@ async def update_project(
         project_id,
         name=name,
         description=description,
+        instructions=instructions,
     )
 
     session_count = await repo.get_session_count(project_id)
+    file_count = await repo.get_file_count(project_id)
 
     return {
         "id": updated.id,
         "user_id": updated.user_id,
         "name": updated.name,
         "description": updated.description,
+        "instructions": updated.instructions,
         "default_agent_config": updated.default_agent_config,
         "archived_at": updated.archived_at.isoformat() if updated.archived_at else None,
         "created_at": updated.created_at.isoformat() if updated.created_at else None,
         "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
         "session_count": session_count,
+        "file_count": file_count,
     }
 
 
@@ -1363,18 +1425,348 @@ async def unarchive_project(
 
     updated = await repo.unarchive(project_id)
     session_count = await repo.get_session_count(project_id)
+    file_count = await repo.get_file_count(project_id)
 
     return {
         "id": updated.id,
         "user_id": updated.user_id,
         "name": updated.name,
         "description": updated.description,
+        "instructions": updated.instructions,
         "default_agent_config": updated.default_agent_config,
         "archived_at": None,
         "created_at": updated.created_at.isoformat() if updated.created_at else None,
         "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
         "session_count": session_count,
+        "file_count": file_count,
     }
+
+
+# ============ Project File endpoints ============
+
+
+@router.get("/projects/{project_id}/files")
+async def list_project_files(
+    project_id: str,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    List all files in a project.
+
+    Returns file metadata without content for efficiency.
+
+    Args:
+        project_id: Project ID
+
+    Returns:
+        List of project files (without content)
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    files = await file_repo.list_for_project(project_id)
+
+    return {
+        "files": [
+            {
+                "id": f.id,
+                "project_id": f.project_id,
+                "filename": f.filename,
+                "original_file_type": f.original_file_type,
+                "description": f.description,
+                "char_count": f.char_count,
+                "word_count": f.word_count,
+                "created_at": f.created_at.isoformat() if f.created_at else None,
+            }
+            for f in files
+        ],
+        "total": len(files),
+    }
+
+
+@router.post("/projects/{project_id}/files")
+@limiter.limit("20/minute")
+async def upload_project_file(
+    request: Request,
+    project_id: str,
+    file: UploadFile = File(...),
+    description: Optional[str] = None,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Upload a file to a project.
+
+    Extracts text content from the file and stores it.
+    Supports: .docx, .pdf, .txt, .md
+    Max file size: 10MB
+
+    Args:
+        project_id: Project ID
+        file: File to upload
+        description: Optional file description
+
+    Returns:
+        Created file data
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify project ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check storage limits before upload
+    limits = await file_repo.check_storage_limits(project_id)
+    if not limits["can_add_file"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project file limit reached. Maximum {limits['max_files']} files per project."
+        )
+
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    # Read file content with size check
+    content_chunks = []
+    total_size = 0
+    chunk_size = 1024 * 1024  # 1MB chunks
+
+    while True:
+        chunk = await file.read(chunk_size)
+        if not chunk:
+            break
+        total_size += len(chunk)
+        if total_size > MAX_FILE_SIZE_BYTES:
+            raise HTTPException(
+                status_code=413,
+                detail=f"File too large. Maximum size is {MAX_FILE_SIZE_MB}MB"
+            )
+        content_chunks.append(chunk)
+
+    content = b"".join(content_chunks)
+
+    # Determine file type and extract text
+    filename_lower = file.filename.lower()
+
+    if filename_lower.endswith('.docx'):
+        text = extract_text_from_docx(content)
+        file_type = 'docx'
+    elif filename_lower.endswith('.pdf'):
+        text = extract_text_from_pdf(content)
+        file_type = 'pdf'
+    elif filename_lower.endswith('.txt') or filename_lower.endswith('.md'):
+        text = extract_text_from_txt(content)
+        file_type = 'txt' if filename_lower.endswith('.txt') else 'md'
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Unsupported file type. Supported: .docx, .pdf, .txt, .md"
+        )
+
+    # Check content size limit
+    if not limits["can_add_content"] or (limits["total_chars"] + len(text)) > file_repo.MAX_PROJECT_TOTAL_CHARS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Project storage limit reached ({limits['usage_percent']}% used). Remove some files to add more."
+        )
+
+    # Create file record
+    project_file = await file_repo.create(
+        project_id=project_id,
+        filename=file.filename,
+        content=text,
+        original_file_type=file_type,
+        description=description,
+    )
+
+    return {
+        "id": project_file.id,
+        "project_id": project_file.project_id,
+        "filename": project_file.filename,
+        "original_file_type": project_file.original_file_type,
+        "description": project_file.description,
+        "char_count": project_file.char_count,
+        "word_count": project_file.word_count,
+        "created_at": project_file.created_at.isoformat() if project_file.created_at else None,
+    }
+
+
+@router.get("/projects/{project_id}/files/{file_id}")
+async def get_project_file(
+    project_id: str,
+    file_id: str,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get a project file with full content.
+
+    Args:
+        project_id: Project ID
+        file_id: File ID
+
+    Returns:
+        File data with content
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify project ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Get file
+    project_file = await file_repo.get_for_project(file_id, project_id)
+    if not project_file:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    return {
+        "id": project_file.id,
+        "project_id": project_file.project_id,
+        "filename": project_file.filename,
+        "original_file_type": project_file.original_file_type,
+        "description": project_file.description,
+        "content": project_file.content,
+        "char_count": project_file.char_count,
+        "word_count": project_file.word_count,
+        "created_at": project_file.created_at.isoformat() if project_file.created_at else None,
+        "updated_at": project_file.updated_at.isoformat() if project_file.updated_at else None,
+    }
+
+
+@router.patch("/projects/{project_id}/files/{file_id}")
+async def update_project_file(
+    project_id: str,
+    file_id: str,
+    filename: Optional[str] = None,
+    description: Optional[str] = None,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Update a project file's metadata.
+
+    Args:
+        project_id: Project ID
+        file_id: File ID
+        filename: Optional new filename
+        description: Optional new description
+
+    Returns:
+        Updated file data (without content)
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify project ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Verify file exists in project
+    existing = await file_repo.get_for_project(file_id, project_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Update file
+    updated = await file_repo.update(file_id, filename=filename, description=description)
+
+    return {
+        "id": updated.id,
+        "project_id": updated.project_id,
+        "filename": updated.filename,
+        "original_file_type": updated.original_file_type,
+        "description": updated.description,
+        "char_count": updated.char_count,
+        "word_count": updated.word_count,
+        "created_at": updated.created_at.isoformat() if updated.created_at else None,
+        "updated_at": updated.updated_at.isoformat() if updated.updated_at else None,
+    }
+
+
+@router.delete("/projects/{project_id}/files/{file_id}")
+async def delete_project_file(
+    project_id: str,
+    file_id: str,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Delete a project file.
+
+    Args:
+        project_id: Project ID
+        file_id: File ID
+
+    Returns:
+        Deletion status
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify project ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Verify file exists in project
+    existing = await file_repo.get_for_project(file_id, project_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="File not found")
+
+    # Delete file
+    await file_repo.delete(file_id)
+
+    return {"status": "deleted", "file_id": file_id, "project_id": project_id}
+
+
+@router.get("/projects/{project_id}/storage")
+async def get_project_storage(
+    project_id: str,
+    user: UserModel = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """
+    Get project storage usage and limits.
+
+    Args:
+        project_id: Project ID
+
+    Returns:
+        Storage usage information
+    """
+    from ..db.repository import ProjectRepository, ProjectFileRepository
+
+    project_repo = ProjectRepository(db)
+    file_repo = ProjectFileRepository(db)
+
+    # Verify project ownership
+    project = await project_repo.get_for_user(project_id, user.id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    limits = await file_repo.check_storage_limits(project_id)
+
+    return limits
 
 
 @router.get("/projects/{project_id}/sessions")

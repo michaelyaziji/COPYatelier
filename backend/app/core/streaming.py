@@ -231,11 +231,16 @@ class StreamingOrchestrator:
 
         if is_first_turn:
             # Round 1: User prompt + reference materials + draft (if present)
+
+            # Always include project/reference instructions if present
+            if self.state.config.reference_instructions:
+                prompt_parts.append("=== PROJECT INSTRUCTIONS ===\n")
+                prompt_parts.append("(Follow these instructions for all outputs in this project.)\n\n")
+                prompt_parts.append(f"{self.state.config.reference_instructions}\n\n")
+
             if self.state.config.reference_documents:
                 prompt_parts.append("=== REFERENCE MATERIALS ===\n")
                 prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
-                if self.state.config.reference_instructions:
-                    prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
                 for filename, content in self.state.config.reference_documents.items():
                     prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
                 prompt_parts.append("\n")
@@ -259,6 +264,13 @@ class StreamingOrchestrator:
             prompt_parts.append("\nOUTPUT: The complete document text.")
         else:
             # Round 2+ or final pass: Current draft + Synthesizer's directive only
+
+            # Always include project/reference instructions if present
+            if self.state.config.reference_instructions:
+                prompt_parts.append("=== PROJECT INSTRUCTIONS ===\n")
+                prompt_parts.append("(Follow these instructions for all outputs in this project.)\n\n")
+                prompt_parts.append(f"{self.state.config.reference_instructions}\n\n")
+
             prompt_parts.append("=== ORIGINAL TASK ===\n")
             prompt_parts.append("(The user's original request — this is your primary directive and takes precedence over editor suggestions:)\n\n")
             prompt_parts.append(f"{self.state.config.initial_prompt}\n\n")
@@ -267,8 +279,6 @@ class StreamingOrchestrator:
             if self.state.config.reference_documents:
                 prompt_parts.append("=== REFERENCE MATERIALS ===\n")
                 prompt_parts.append("(These are supporting documents for context only. Do NOT edit these.)\n")
-                if self.state.config.reference_instructions:
-                    prompt_parts.append(f"\nHow to use these materials: {self.state.config.reference_instructions}\n")
                 for filename, content in self.state.config.reference_documents.items():
                     prompt_parts.append(f"\n--- {filename} ---\n{content}\n")
                 prompt_parts.append("\n")
@@ -309,6 +319,12 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
         """Build prompt for Editors with current draft and original task context."""
         prompt_parts = []
 
+        # Project instructions so editors evaluate against them
+        if self.state.config.reference_instructions:
+            prompt_parts.append("=== PROJECT INSTRUCTIONS ===\n")
+            prompt_parts.append("(These are project-level requirements. Evaluate the document against these instructions.)\n\n")
+            prompt_parts.append(f"{self.state.config.reference_instructions}\n\n")
+
         # Original task so editors understand the intent/requirements
         prompt_parts.append("=== ORIGINAL TASK ===\n")
         prompt_parts.append("(The user's original request — this defines the requirements. Your feedback must respect and support what the user asked for:)\n\n")
@@ -332,6 +348,12 @@ OUTPUT: Write the complete, revised document. Do NOT provide suggestions or feed
     def _build_synthesizer_prompt(self, agent: AgentConfig) -> str:
         """Build prompt for Synthesizer with current draft + this round's editor feedback."""
         prompt_parts = []
+
+        # Project instructions so synthesizer respects them when creating directives
+        if self.state.config.reference_instructions:
+            prompt_parts.append("=== PROJECT INSTRUCTIONS ===\n")
+            prompt_parts.append("(These are project-level requirements. Ensure your directives align with these instructions.)\n\n")
+            prompt_parts.append(f"{self.state.config.reference_instructions}\n\n")
 
         # Original task so synthesizer understands the intent
         prompt_parts.append("=== ORIGINAL TASK ===\n")
