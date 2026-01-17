@@ -288,7 +288,7 @@ export function ProjectView({ projectId, onCreateSession, onBack }: ProjectViewP
                 variant="outline"
                 size="sm"
                 onClick={() => fileInputRef.current?.click()}
-                disabled={uploadingFile || (storage && !storage.can_add_file)}
+                disabled={uploadingFile || !!(storage && !storage.can_add_file)}
               >
                 {uploadingFile ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-1" />
