@@ -45,7 +45,7 @@ export function ProjectSidebar({
     if (!newProjectName.trim()) return;
 
     try {
-      const project = await api.createProject(newProjectName.trim());
+      const project = await api.createProject({ name: newProjectName.trim() });
       setProjects([project, ...projects]);
       setNewProjectName('');
       setShowCreateModal(false);
